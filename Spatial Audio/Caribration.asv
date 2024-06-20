@@ -34,8 +34,6 @@ end
 
 %% データ受信と処理
 disp('Now receiving data...');
-
-%% パラメータ設定
 global isRunning Fs minf maxf nTrials Ch numFilter filtOrder labelName csvFilename singleTrials  t csv_file
 minf = 1;
 maxf = 40;
@@ -58,6 +56,13 @@ dataName = name;
 csvFilename = [name '_label.csv'];
 labelName = 'stimulus';
 
+% UDPポート番号
+portNumber = 12354;
+% UDPソケットを作成
+udpSocket = udp('127.0.0.1', 'LocalPort', portNumber);
+% 受信データがある場合に処理を行う    
+fopen(udpSocket);
+
 % EPOC X
 Fs = 256;
 Ch = {'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'}; % チャンネル
@@ -73,20 +78,9 @@ boxConstraint = [0.1, 1, 100];
 % GUIの作成と表示
 createMovieStartGUI();
 
-
-%% 脳波データ計測
 eegData = [];
 preprocessedData = [];
 labels = [];
-
-
-% UDPポート番号
-portNumber = 12354;
-% UDPソケットを作成
-udpSocket = udp('127.0.0.1', 'LocalPort', portNumber);
-% 受信データがある場合に処理を行う    
-fopen(udpSocket);
-
 
 while ~isRunning
     % 待機時間

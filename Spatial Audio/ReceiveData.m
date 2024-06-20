@@ -55,8 +55,8 @@ end
 % データ受信と処理
 disp('Now receiving data...');
 global Fs minf maxf filtOrder numFilter isRunning
-minf = 8;
-maxf = 30;
+minf = 1;
+maxf = 40;
 filtOrder = 400;
 
 % EPOC X
@@ -71,10 +71,9 @@ numFilter =4;
 % selectedChannels = [4, 5]; % T7, T8のデータを選択
 
 windowSize = 10; % ウィンドウサイズ（秒）
-stepSize = 0.2; % ステップサイズ（秒）
+stepSize = 0.25; % ステップサイズ（秒）
 samplesPerWindow = windowSize * Fs; % ウィンドウ内のサンプル数
 stepSamples = stepSize * Fs; % ステップサイズに相当するサンプル数
-i = 1;
 
 isRunning = true;
 dataBuffer = []; % データバッファの初期化
@@ -113,8 +112,8 @@ while isRunning
         svm_output13 = predict(svmMdl13, features13);
         
         %disp(svm_output12);
-       %disp(svm_output23);
-       %disp(svm_output13);
+        %disp(svm_output23);
+        %disp(svm_output13);
         
         % 出力
         if svm_output23 == 2
@@ -136,13 +135,12 @@ while isRunning
         % Unityへのデータ通信
         disp(predictedClass);
         SendData(predictedClass);
-        % SendData(svm_output23);
+        %SendData(svm_output23);
         %SendData(svm_output13);
         %SendData(svm_output12);
          
         % データバッファの更新
         dataBuffer = dataBuffer(:, (stepSamples+1):end); % オーバーラップを保持
-        i = i+1;
     end
     
     pause(0.0001);  % 応答性を保つための短い休止

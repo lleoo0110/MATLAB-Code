@@ -228,14 +228,14 @@ disp('データ解析完了しました');
 
 
 % SVMモデルの訓練
-t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
-svmMdl = fitcecoc(X, y, 'Learners', t);
-
-% クロスバリデーション
-CVSVMModel = crossval(svmMdl, 'KFold', 5); % Kは分割数
-% クロスバリデーションによる平均分類誤差の計算
-loss = kfoldLoss(CVSVMModel);
-meanAccuracy = 1-loss;
+% t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
+% svmMdl = fitcecoc(X, y, 'Learners', t);
+% 
+% % クロスバリデーション
+% CVSVMModel = crossval(svmMdl, 'KFold', 5); % Kは分割数
+% % クロスバリデーションによる平均分類誤差の計算
+% loss = kfoldLoss(CVSVMModel);
+% meanAccuracy = 1-loss;
 
 % ボタン構成
 function createMovieStartGUI()
