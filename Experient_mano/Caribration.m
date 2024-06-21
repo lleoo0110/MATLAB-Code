@@ -42,22 +42,23 @@ isRunning = false;
 
 labelNum = 30;
 movieTimes = 1;
-labelNum = 30;
 overlap = 4;
 nTrials = movieTimes * labelNum * overlap;
 singleTrials = labelNum * overlap;
 K=10;
 
-dataName = 'mano_nutral';
-datasetName = 'mano_neutral_dataset'; 
-csvFilename = 'mano_label_neutral.csv';
+% データセットの名前を指定
+name = 'mano_hakihaki'; % ここを変更
+datasetName = [name '_dataset'];
+dataName = name;
+csvFilename = [name '_label.csv'];
 labelName = 'stimulus';
 
 % EPOC X
 Fs = 256;
 Ch = {'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'}; % チャンネル
 selectedChannels = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
-numFilter = 4;
+numFilter = 3;
 
 % GUIの作成と表示
 createMovieStartGUI();
@@ -158,6 +159,8 @@ end
 % disp('データ解析完了しました');
 
 
+
+%% 脳波データ解析
 % 全組み合わせの分類精度算出
 accuracyMatrix = zeros(11, 11);
 % 全てのクラスの組み合わせについてループ
@@ -181,7 +184,6 @@ for i = 1:11
         c = cvpartition(length(y), 'KFold', K);
         opts = struct('CVPartition', c, 'AcquisitionFunctionName', 'expected-improvement-plus');
         svmMdl = fitcsvm(X, y, 'OptimizeHyperparameters', 'auto', 'HyperparameterOptimizationOptions', opts);
-        
         % svmMdl = fitcsvm(X, y, 'OptimizeHyperparameters', 'auto');
         
         % 交差検証による精度評価
@@ -204,7 +206,7 @@ disp('Accuracy Matrix:');
 disp(accuracyMatrix);
 
 
-% ボタン構成
+%% ボタン構成
 function createMovieStartGUI()
     global t csv_file label_name startButton stopButton labelButton csvFilename; % グローバル変数の宣言
     % GUIの作成と設定をここに記述
