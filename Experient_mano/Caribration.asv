@@ -46,7 +46,6 @@ labelNum = 30;
 overlap = 4;
 nTrials = movieTimes * labelNum * overlap;
 singleTrials = labelNum * overlap;
-K=10;
 
 dataName = 'mano_nutral';
 datasetName = 'mano_neutral_dataset'; 
@@ -164,38 +163,32 @@ accuracyMatrix = zeros(11, 11);
 for i = 1:11
     for j = i+1:11
         % クラスデータとラベルを取得
-        dataClassA = eval(['dataClass', num2str(i)]);
-        dataClassB = eval(['dataClass', num2str(j)]);
-        labelClassA = repmat(1, size(dataClassA, 1), 1);
-        labelClassB = repmat(2, size(dataClassB, 1), 1);
+        dataClass1 = eval(['dataClass', num2str(i)]);
+        dataClass2 = eval(['dataClass', num2str(j)]);
+        labelClass1 = repmat(1, size(dataClass1, 1), 1);
+        labelClass2 = repmat(2, size(dataClass2, 1), 1);
         
         % CSP特徴抽出
-        [cspClassA, cspClassB, cspFiltersAB] = processCSPData2Class(dataClassA, dataClassB);
-        SVMDataSet = [cspClassA; cspClassB];
-        SVMLabels = [labelClassA; labelClassB];
+        [cspClass1, cspClass2, cspFilters12] = processCSPData2Class(dataClass1, dataClass2);
+        SVMDataSet12 = [cspClass1; cspClass2];
+        SVMLabels12 = [labelClass1; labelClass2];
         
         % SVMモデルの学習
-        X = SVMDataSet;
-        y = SVMLabels;
-        
-        c = cvpartition(length(y), 'KFold', K);
-        opts = struct('CVPartition', c, 'AcquisitionFunctionName', 'expected-improvement-plus');
-        svmMdl = fitcsvm(X, y, 'OptimizeHyperparameters', 'auto', 'HyperparameterOptimizationOptions', opts);
-        
-        % svmMdl = fitcsvm(X, y, 'OptimizeHyperparameters', 'auto');
+        X12 = SVMDataSet12;
+        y12 = SVMLabels12;
+        svmMdl12 = fitcsvm(X12, y12, 'OptimizeHyperparameters', 'auto');
         
         % 交差検証による精度評価
-        CVSVMModel = crossval(svmMdl, 'KFold', K);
-        loss = kfoldLoss(CVSVMModel);
-        meanAccuracy = 1 - loss;
+        CVSVMModel12 = crossval(svmMdl12, 'KFold', K);
+        loss = kfoldLoss(CVSVMModel12);
+        meanAccuracy12 = 1 - loss;
         
         % 分類精度を行列に保存
-        accuracyMatrix(i, j) = meanAccuracy;
-        accuracyMatrix(j, i) = meanAccuracy;
+        accuracyMatrix(i, j) = meanAccuracy12;
+        accuracyMatrix(j, i) = meanAccuracy12;
         
         % 分類精度を表示
-        disp(['Class ', num2str(i), ' vs Class ', num2str(j), ': ', num2str(meanAccuracy * 100), '%']);
-        close('all');
+        disp(['Class ', num2str(i), ' vs Class ', num2str(j), ': ', num2str(meanAccuracy12 * 100), '%']);
     end
 end
 
