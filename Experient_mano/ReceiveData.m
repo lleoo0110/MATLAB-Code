@@ -52,18 +52,20 @@ for k = 1:inf.channel_count()
 end
 
 
-% データ受信と処理
+%% データ受信
 disp('Now receiving data...');
+
+%% パラメータ設定
 global Fs minf maxf filtOrder numFilter isRunning
-minf = 1;
-maxf = 40;
+minf = 8;
+maxf = 13;
 filtOrder = 400;
 
 % EPOC X
 Fs = 256;
 Ch = {'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'}; % チャンネル
 selectedChannels = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
-numFilter =4;
+numFilter =7;
 
 % MN8
 % Fs = 128;
@@ -74,7 +76,6 @@ windowSize = 10; % ウィンドウサイズ（秒）
 stepSize = 1; % ステップサイズ（秒）
 samplesPerWindow = windowSize * Fs; % ウィンドウ内のサンプル数
 stepSamples = stepSize * Fs; % ステップサイズに相当するサンプル数
-i = 1;
 
 isRunning = true;
 dataBuffer = []; % データバッファの初期化
@@ -100,48 +101,16 @@ while isRunning
         analysisData = preprocessedData(:, end-Fs*2+1:end);
         
         % 特徴量抽出
-        features12 = extractCSPFeatures(analysisData, cspFilters12);
-        features12 = features12';
-        features23 = extractCSPFeatures(analysisData, cspFilters23);
-        features23 = features23';
-        features13 = extractCSPFeatures(analysisData, cspFilters13);
-        features13 = features13';
+        features = extractCSPFeatures(analysisData, cspFilters);
+        features = features';
         
         % SVMモデルから予想を出力
-        svm_output12 = predict(svmMdl12, features12);
-        svm_output23 = predict(svmMdl23, features23);
-        svm_output13 = predict(svmMdl13, features13);
+        svm_output12 = predict(svmMdl, features);
         
-        %disp(svm_output12);
-       disp(svm_output23);
-       %disp(svm_output13);
-        
-        % 出力
-        if svm_output23 == 2
-            if svm_output12 == 1
-                predictedClass = 1;
-            else
-                predictedClass = 2; % 2または3のクラス
-            end
-        end
-        
-        if svm_output23 == 3
-            if svm_output13 == 1
-                predictedClass = 1;
-            else
-                predictedClass = 3; % 2または3のクラス
-            end
-        end
-        
-        % Unityへのデータ通信
-        % SendData(predictedClass);
-        SendData(svm_output23);
-        %SendData(svm_output13);
-        %SendData(svm_output12);
+        disp(svm_output);
          
         % データバッファの更新
         dataBuffer = dataBuffer(:, (stepSamples+1):end); % オーバーラップを保持
-        i = i+1;
     end
     
     pause(0.0001);  % 応答性を保つための短い休止

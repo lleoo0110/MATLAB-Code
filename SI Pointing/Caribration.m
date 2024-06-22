@@ -32,14 +32,13 @@ for k = 1:inf.channel_count()
 end
 
 
-% データ受信と処理
-addpath '/Users/lleoo/Documents/大学授業/研究/BCIxD/Experiment/labels'
-addpath '/Users/lleoo/Documents/MATLAB Repogitory/emotiv-lsl_2020b'
-
+%% データ受信と処理
 disp('Now receiving data...');
+
+%% パラメータ設定
 global isRunning Fs minf maxf nTrials Ch numFilter filtOrder labelName csvFilename singleTrials
 minf = 8;
-maxf = 30;
+maxf = 13;
 filtOrder = 400;
 isRunning = false;
 movieTimes = 4;
@@ -47,17 +46,20 @@ labelNum = 50;
 overlap = 1;
 nTrials = movieTimes * labelNum * overlap;
 singleTrials = labelNum * overlap;
-datasetName = 'lleoo_dataset'; % データセットの名前を指定
-datasetNameN = 'lleoo_datasetN';
-dataName = 'lleoo';
-csvFilename = 'lleoo.csv';
+
+% データセットの名前を指定
+name = 'lleoo'; % ここを変更
+datasetName = [name '_dataset'];
+dataName = name;
+csvFilename = [name '_label.csv'];
 labelName = 'stimulus';
 
 % EPOC X
 Fs = 256;
 Ch = {'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'}; % チャンネル
 selectedChannels = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
-numFilter = 4;
+numFilter = 7;
+K=10;
 
 % MN8
 % Fs = 128;
@@ -74,10 +76,11 @@ boxConstraint = [0.1, 1, 100];
 % GUIの作成と表示
 createMovieStartGUI();
 
+
+%% 脳波データ計測
 eegData = [];
 preprocessedData = [];
 labels = [];
-
 while ~isRunning
     % 待機時間
     pause(0.1);
@@ -130,11 +133,12 @@ while true
 end
 eegData = savedData;
 
-% 取得した脳波データから解析
+
+%% 取得した脳波データから解析
 disp('データ解析中...しばらくお待ちください...');
 
 
-% データの前処理
+%% データの前処理
 preprocessedData = preprocessData(eegData, filtOrder, minf, maxf);
 
 
@@ -158,9 +162,9 @@ for ii = 1:movieTimes
         case 2
         st = movieStart(2,2);
         case 3
-        st = movieStart(2,2);
+        st = movieStart(3,2);
         case 4
-        st = movieStart(2,2);
+        st = movieStart(4,2);
     end
     
     for jj = 1:labelNum
@@ -173,12 +177,11 @@ for ii = 1:movieTimes
             tt = 0;
             for ll = 1:overlap
                 DataSet{singleTrials*(ii-1)+overlap*(jj-1)+ll, 1}(kk,:) = preprocessedData(kk,startIdx+round(tt*Fs):endIdx+round(tt*Fs)); % tt秒後のデータ
-                tt = tt + 1.5;
+                tt = tt + 1;
             end
         end
     end
 end
-
 
 % ラベルの一覧を取得
 uniqueLabels = unique(labels);
@@ -197,45 +200,38 @@ dataClass2 = labelData{uniqueLabels == 2};
 labelClass1 = repmat(1, size(dataClass1, 1), 1);
 labelClass2 = repmat(2, size(dataClass2, 1), 1);
 
-% CSPデータセット作成
+
+%% 脳波データ解析
+% CSP特徴抽出
 [cspClass1, cspClass2, cspFilters] = processCSPData2Class(dataClass1, dataClass2);
 SVMDataSet = [cspClass1; cspClass2];
 SVMLabels = [labelClass1; labelClass2];
 
-
-% 分類精度計算
-meanAccuracy = zeros(1, 1);
-% データ
+% SVMモデルの学習
 X = SVMDataSet;
 y = SVMLabels;
 
-% グリッドリサーチを実行
-bestParams = optimizeGridSearch(X, y, kernelFunctions, kernelScale, boxConstraint);
+c = cvpartition(length(y), 'KFold', K);
+opts = struct('CVPartition', c, 'AcquisitionFunctionName', 'expected-improvement-plus');
+svmMdl = fitcsvm(X, y, 'OptimizeHyperparameters', 'auto', 'HyperparameterOptimizationOptions', opts);
+% svmMdl = fitcsvm(X, y, 'OptimizeHyperparameters', 'auto');
 
-% 分類精度
-[meanAccuracy, svmMdl] = crossvalidation(X, y, bestParams.kernelFunction, bestParams.kernelScale, bestParams.boxConstraint, 5);
+% 交差検証による精度評価
+CVSVMModel = crossval(svmMdl, 'KFold', K);
+loss = kfoldLoss(CVSVMModel);
+meanAccuracy = 1 - loss;
 
 % 各クラスのデータ数と分類精度を表示
 disp(['Class 1: ', num2str(size(dataClass1, 1))]);
 disp(['Class 2: ', num2str(size(dataClass2, 1))]);
 disp(['Accuracy', '：', num2str(meanAccuracy * 100), '%']);
+close('all');
 
 % データセットを保存
 save(datasetName, 'eegData', 'preprocessedData', 'SVMDataSet', 'SVMLabels', 'cspFilters', 'svmMdl');
 disp(['データセットが ', datasetName, ' として保存されました。']);
 disp('データ解析完了しました');
 
-
-
-% SVMモデルの訓練
-% t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
-% svmMdl = fitcecoc(X, y, 'Learners', t);
-% 
-% % クロスバリデーション
-% CVSVMModel = crossval(svmMdl, 'KFold', 5); % Kは分割数
-% % クロスバリデーションによる平均分類誤差の計算
-% loss = kfoldLoss(CVSVMModel);
-% meanAccuracy = 1-loss;
 
 % ボタン構成
 function createMovieStartGUI()
