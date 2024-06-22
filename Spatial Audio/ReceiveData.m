@@ -5,7 +5,7 @@ addpath '/Users/lleoo/Documents/MATLAB Repogitory/program/RTBCI'
 % addpath '/Users/lleoo/Documents/大学授業/研究/AHs2024/Experiment1/onomatopoeia/labels'
 
 if ismac
-    % Code to run on Mac platform
+    %le Code to run on Mac platform
     addpath(fullfile(mfilepath,'./bin/mac'));
     addpath(fullfile(mfilepath,'./liblsl-Matlab'));
 elseif isunix

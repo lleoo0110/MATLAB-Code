@@ -41,14 +41,14 @@ minf = 1;
 maxf = 40;
 filtOrder = 400;
 isRunning = false;
-movieTimes = 4;
+movieTimes = 2;
 labelNum = 21;
 overlap = 4;
 nTrials = movieTimes * labelNum * overlap;
 singleTrials = labelNum * overlap;
 
 % データセットの名前を指定
-name = 'shohei'; % ここを変更
+name = 'lleoo_multi'; % ここを変更
 datasetName12 = [name '_dataset12'];
 datasetName23 = [name '_dataset23'];
 datasetName13 = [name '_dataset13'];
@@ -81,7 +81,7 @@ labels = [];
 
 
 % UDPポート番号
-portNumber = 12354;
+portNumber = 45321;
 % UDPソケットを作成
 udpSocket = udp('127.0.0.1', 'LocalPort', portNumber);
 % 受信データがある場合に処理を行う    
@@ -201,7 +201,7 @@ for ii = 1:movieTimes
     for jj = 1:labelNum
         for kk = 1:length(Ch)
             % 2秒間のデータを抽出
-            startIdx = round(Fs*((st+11)+15*(jj-1))) + 1;
+            startIdx = round(Fs*((st+10)+15*(jj-1))) + 1;
             endIdx = startIdx + Fs*2 - 1;
 
             % エポック
@@ -254,6 +254,9 @@ y23 = SVMLabels23;
 
 % % SVMモデルの学習（自動選択）
 svmMdl23 = fitcsvm(X23, y23, 'OptimizeHyperparameters', 'auto');
+% デフォルト
+% t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
+% svmMdl23 = fitcecoc(X, y, 'Learners', t);
 
 % % SVMモデルの学習（手動選択）
 % bestParams23 = optimizeGridSearch(X23, y23, kernelFunctions, kernelScale, boxConstraint); % グリッドリサーチ
@@ -288,6 +291,9 @@ y12 = SVMLabels12;
 
 % % SVMモデルの学習（自動選択）
 svmMdl12 = fitcsvm(X12, y12, 'OptimizeHyperparameters', 'auto');
+% デフォルト
+% t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
+% svmMdl12 = fitcecoc(X, y, 'Learners', t);
 
 % % SVMモデルの学習（手動選択）
 % bestParams12 = optimizeGridSearch(X12, y12, kernelFunctions, kernelScale, boxConstraint); % グリッドリサーチ
@@ -324,6 +330,9 @@ y13 = SVMLabels13;
 
 % % SVMモデルの学習（自動選択）
 svmMdl13 = fitcsvm(X13, y13, 'OptimizeHyperparameters', 'auto');
+% デフォルト
+% t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
+% svmMdl13 = fitcecoc(X, y, 'Learners', t);
 
 % % SVMモデルの学習（手動選択）
 % bestParams13 = optimizeGridSearch(X13, y13, kernelFunctions, kernelScale, boxConstraint); % グリッドリサーチ
