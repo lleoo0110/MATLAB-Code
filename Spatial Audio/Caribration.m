@@ -53,8 +53,6 @@ datasetName12 = [name '_dataset12'];
 datasetName23 = [name '_dataset23'];
 datasetName13 = [name '_dataset13'];
 dataName = name;
-
-% CSVファイル
 csvFilename = [name '_label.csv'];
 labelName = 'stimulus';
 

@@ -45,7 +45,7 @@ movieTimes = 1;
 overlap = 4;
 nTrials = movieTimes * labelNum * overlap;
 singleTrials = labelNum * overlap;
-K=10;
+K=5;
 
 % データセットの名前を指定
 name = 'mano_hakihaki'; % ここを変更
@@ -58,7 +58,7 @@ labelName = 'stimulus';
 Fs = 256;
 Ch = {'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'}; % チャンネル
 selectedChannels = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
-numFilter = 3;
+numFilter = 7;
 
 % GUIの作成と表示
 createMovieStartGUI();
@@ -164,8 +164,8 @@ end
 % 全組み合わせの分類精度算出
 accuracyMatrix = zeros(11, 11);
 % 全てのクラスの組み合わせについてループ
-for i = 1:11
-    for j = i+1:11
+for i = 1:5
+    for j = i+1:5
         % クラスデータとラベルを取得
         dataClassA = eval(['dataClass', num2str(i)]);
         dataClassB = eval(['dataClass', num2str(j)]);
@@ -204,6 +204,35 @@ end
 % 分類精度行列を表示
 disp('Accuracy Matrix:');
 disp(accuracyMatrix);
+
+
+
+
+
+% labelClass1 = repmat(1, size(dataClass1, 1), 1);
+% labelClass2 = repmat(2, size(dataClass2, 1), 1);
+%         
+% % CSPデータセット
+% [cspClass1, cspClass2, cspFilters] = processCSPData2Class(dataClass1, dataClass10);
+% SVMDataSet = [cspClass1; cspClass2];
+% SVMLabels = [labelClass1; labelClass2];
+% 
+% % 分類精度計算
+% meanAccuracy = zeros(1, 1);
+% % データ
+% X = SVMDataSet;
+% y = SVMLabels;
+% 
+% % % SVMモデルの学習（自動選択）
+% svmMdl = fitcsvm(X, y, 'OptimizeHyperparameters', 'auto');
+% 
+% % クロスバリデーションによる平均分類誤差の計算
+% CVSVMModel = crossval(svmMdl, 'KFold', K); % Kは分割数
+% loss = kfoldLoss(CVSVMModel);
+% meanAccuracy = 1-loss;
+% disp(['Class ', num2str(i), ' vs Class ', num2str(j), ': ', num2str(meanAccuracy * 100), '%']);
+
+
 
 
 %% ボタン構成
