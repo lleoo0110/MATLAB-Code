@@ -42,10 +42,10 @@ maxf = 40;
 filtOrder = 400;
 isRunning = false;
 movieTimes = 2;
-overlap = 1;
+overlap = 4;
 
 % データセットの名前を指定
-name = 'colors_'; % ここを変更
+name = 'colors_sui-sui'; % ここを変更
 datasetName = [name '_dataset'];
 dataName = name;
 csvFilename = [name '_label.csv'];
@@ -57,6 +57,19 @@ labelNum = size(label, 1);
 
 nTrials = movieTimes * labelNum * overlap;
 singleTrials = labelNum * overlap;
+
+% EPOC X
+Fs = 256;
+Ch = {'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'}; % チャンネル
+selectedChannels = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
+numFilter = 7;
+K=10;
+
+% MN8
+% Fs = 128;
+% Ch = {'T7','T8'};
+% selectedChannels = [4, 5]; % T7, T8のデータを選択
+% numFilter = 1;
 
 % GUIの作成と表示
 createMovieStartGUI();
@@ -127,40 +140,40 @@ disp('データ解析中...しばらくお待ちください...');
 %%  データの前処理
 preprocessedData = preprocessData(eegData, filtOrder, minf, maxf);
 
-% ラベル作成
-labels = [];
-for ii = 1:labelNum
-    for kk = 1:overlap
-       labels(overlap*(ii-1)+kk,1) = label(ii,1);
-    end
-end
-labels = repmat(labels, movieTimes, 1);
-
-% エポック化
-for ii = 1:movieTimes
-    % 刺激開始時間
-    switch ii
-        case 1
-        st = movieStart(1,2);
-        case 2
-        st = movieStart(2,2);
-    end
-    
-    for jj = 1:labelNum
-        for kk = 1:length(Ch)
-            % 2秒間のデータを抽出
-            startIdx = round(Fs*((st+5)+10*(jj-1))) + 1;
-            endIdx = startIdx + Fs*2 - 1;
-
-            % データ数増加
-            tt = 0;
-            for ll = 1:overlap
-                DataSet{singleTrials*(ii-1)+overlap*(jj-1)+ll, 1}(kk,:) = preprocessedData(kk,startIdx+round(tt*Fs):endIdx+round(tt*Fs)); % tt秒後のデータ
-                tt = tt + 1;
-            end
-        end
-    end
-end
+% % ラベル作成
+% labels = [];
+% for ii = 1:labelNum
+%     for kk = 1:overlap
+%        labels(overlap*(ii-1)+kk,1) = label(ii,1);
+%     end
+% end
+% labels = repmat(labels, movieTimes, 1);
+% 
+% % エポック化
+% for ii = 1:movieTimes
+%     % 刺激開始時間
+%     switch ii
+%         case 1
+%         st = movieStart(1,2);
+%         case 2
+%         st = movieStart(2,2);
+%     end
+%     
+%     for jj = 1:labelNum
+%         for kk = 1:length(Ch)
+%             % 2秒間のデータを抽出
+%             startIdx = round(Fs*((st+5)+10*(jj-1))) + 1;
+%             endIdx = startIdx + Fs*2 - 1;
+% 
+%             % データ数増加
+%             tt = 0;
+%             for ll = 1:overlap
+%                 DataSet{singleTrials*(ii-1)+overlap*(jj-1)+ll, 1}(kk,:) = preprocessedData(kk,startIdx+round(tt*Fs):endIdx+round(tt*Fs)); % tt秒後のデータ
+%                 tt = tt + 1;
+%             end
+%         end
+%     end
+% end
 
 
 % データセットを保存
