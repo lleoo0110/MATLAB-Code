@@ -41,14 +41,14 @@ minf = 1;
 maxf = 40;
 filtOrder = 400;
 isRunning = false;
-movieTimes = 2;
+movieTimes = 4;
 labelNum = 21;
 overlap = 4;
 nTrials = movieTimes * labelNum * overlap;
 singleTrials = labelNum * overlap;
 
 % データセットの名前を指定
-name = 'lleoo_multi'; % ここを変更
+name = 'yabuchan_multi_2'; % ここを変更
 datasetName12 = [name '_dataset12'];
 datasetName23 = [name '_dataset23'];
 datasetName13 = [name '_dataset13'];
@@ -79,7 +79,7 @@ labels = [];
 
 
 % UDPポート番号
-portNumber = 45321;
+portNumber = 12354;
 % UDPソケットを作成
 udpSocket = udp('127.0.0.1', 'LocalPort', portNumber);
 % 受信データがある場合に処理を行う    

@@ -41,14 +41,14 @@ filtOrder = 400;
 isRunning = false;
 
 labelNum = 30;
-movieTimes = 1;
+movieTimes = 2;
 overlap = 4;
 nTrials = movieTimes * labelNum * overlap;
 singleTrials = labelNum * overlap;
 K=5;
 
 % データセットの名前を指定
-name = 'mano_hakihaki'; % ここを変更
+name = 'test_sui-sui'; % ここを変更
 datasetName = [name '_dataset'];
 dataName = name;
 csvFilename = [name '_label.csv'];
