@@ -57,8 +57,8 @@ disp('Now receiving data...');
 
 %% パラメータ設定
 global Fs minf maxf filtOrder numFilter isRunning
-minf = 8;
-maxf = 13;
+minf = 1;
+maxf = 30;
 filtOrder = 400;
 
 % EPOC X
