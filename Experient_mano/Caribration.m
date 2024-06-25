@@ -207,34 +207,6 @@ disp(accuracyMatrix);
 
 
 
-
-
-% labelClass1 = repmat(1, size(dataClass1, 1), 1);
-% labelClass2 = repmat(2, size(dataClass2, 1), 1);
-%         
-% % CSPデータセット
-% [cspClass1, cspClass2, cspFilters] = processCSPData2Class(dataClass1, dataClass10);
-% SVMDataSet = [cspClass1; cspClass2];
-% SVMLabels = [labelClass1; labelClass2];
-% 
-% % 分類精度計算
-% meanAccuracy = zeros(1, 1);
-% % データ
-% X = SVMDataSet;
-% y = SVMLabels;
-% 
-% % % SVMモデルの学習（自動選択）
-% svmMdl = fitcsvm(X, y, 'OptimizeHyperparameters', 'auto');
-% 
-% % クロスバリデーションによる平均分類誤差の計算
-% CVSVMModel = crossval(svmMdl, 'KFold', K); % Kは分割数
-% loss = kfoldLoss(CVSVMModel);
-% meanAccuracy = 1-loss;
-% disp(['Class ', num2str(i), ' vs Class ', num2str(j), ': ', num2str(meanAccuracy * 100), '%']);
-
-
-
-
 %% ボタン構成
 function createMovieStartGUI()
     global t csv_file label_name startButton stopButton labelButton csvFilename; % グローバル変数の宣言
