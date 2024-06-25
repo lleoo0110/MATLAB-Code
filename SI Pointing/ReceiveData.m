@@ -53,15 +53,15 @@ end
 % データ受信と処理
 disp('Now receiving data...');
 global Fs minf maxf filtOrder numFilter isRunning
-minf = 1;
-maxf = 40;
+minf = 8;
+maxf = 13;
 filtOrder = 400;
 
 % EPOC X
 Fs = 256;
 Ch = {'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'}; % チャンネル
 selectedChannels = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
-numFilter = 4;
+numFilter = 7;
 
 % MN8
 % Fs = 128;
@@ -69,10 +69,9 @@ numFilter = 4;
 % selectedChannels = [4, 5]; % T7, T8のデータを選択
 
 windowSize = 10; % ウィンドウサイズ（秒）
-stepSize = 1; % ステップサイズ（秒）
+stepSize = 0.1; % ステップサイズ（秒）
 samplesPerWindow = windowSize * Fs; % ウィンドウ内のサンプル数
 stepSamples = stepSize * Fs; % ステップサイズに相当するサンプル数
-i = 1;
 
 isRunning = true;
 dataBuffer = []; % データバッファの初期化
@@ -96,8 +95,7 @@ while isRunning
     if size(dataBuffer, 2) >= samplesPerWindow        
         preprocessedData = preprocessData(dataBuffer(:, 1:samplesPerWindow), filtOrder, minf, maxf); % データの前処理
         analysisData = preprocessedData(:, end-Fs*1+1:end);
-        
-        % ----------
+
         % 特徴量抽出
         features = extractCSPFeatures(analysisData, cspFilters);
         features = features';
@@ -108,11 +106,9 @@ while isRunning
         
         % Unityへのデータ通信
         SendData(svm_output);
-        % ----------
 
         % データバッファの更新
         dataBuffer = dataBuffer(:, (stepSamples+1):end); % オーバーラップを保持
-        i = i+1;
     end
     
     pause(0.0001);  % 応答性を保つための短い休止

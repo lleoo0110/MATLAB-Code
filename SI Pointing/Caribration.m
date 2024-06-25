@@ -37,8 +37,8 @@ disp('Now receiving data...');
 
 %% パラメータ設定
 global isRunning Fs minf maxf nTrials Ch numFilter filtOrder labelName csvFilename singleTrials
-minf = 8;
-maxf = 13;
+minf = 13;
+maxf = 30;
 filtOrder = 400;
 isRunning = false;
 movieTimes = 4;
@@ -48,7 +48,7 @@ nTrials = movieTimes * labelNum * overlap;
 singleTrials = labelNum * overlap;
 
 % データセットの名前を指定
-name = 'lleoo'; % ここを変更
+name = 'lleoo_repeat'; % ここを変更
 datasetName = [name '_dataset'];
 dataName = name;
 csvFilename = [name '_label.csv'];
@@ -170,7 +170,7 @@ for ii = 1:movieTimes
     for jj = 1:labelNum
         for kk = 1:length(Ch)
             % 2秒間のデータを抽出
-            startIdx = round(Fs*((st+5)+6*(jj-1))) + 1;
+            startIdx = round(Fs*((st+7)+12*(jj-1))) + 1;
             endIdx = startIdx + Fs*1 - 1;
 
             % エポック
