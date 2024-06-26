@@ -61,12 +61,17 @@ dataName = name;
 csvFilename = [name '_label.csv'];
 labelName = 'stimulus';
 
+% グリッドリサーチ パラメータの範囲を定義
+kernelFunctions = {'linear', 'rbf', 'polynomial'};
+kernelScale = [0.1, 1, 10];
+boxConstraint = [0.1, 1, 100];
+
 % EPOC X
 Fs = 256;
 Ch = {'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'}; % チャンネル
 selectedChannels = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
 numFilter = 7;
-K = 5;
+K = 10;
 
 
 %% 脳波データ計測
@@ -101,7 +106,7 @@ while isRunning
     selectedData = vec(selectedChannels);
     eegData = [eegData selectedData];
     
-     if udpSocket.BytesAvailable > 0
+    if udpSocket.BytesAvailable > 0
         % データを受信
         receivedData = fread(udpSocket, udpSocket.BytesAvailable, 'uint8');
         % 受信データを文字列に変換
@@ -119,7 +124,7 @@ while isRunning
         else
             disp(['Unknown command received: ', str]);
         end
-     end
+    end
     
     elapsedTime = toc(lastSaveTime);
     if elapsedTime >= saveInterval
@@ -246,16 +251,24 @@ X23 = SVMDataSet23;
 y23 = SVMLabels23;
 
 % SVMモデル
-svmMdl23 = fitcsvm(X23, y23, 'OptimizeHyperparameters', 'auto', 'Standardize', true, 'ClassNames', [2,3]);
+% svmMdl23 = fitcsvm(X23, y23, 'OptimizeHyperparameters', 'auto', 'Standardize', true, 'ClassNames', [2,3]);
+% 
+% % 確率出力を可能にするモデルに変換
+% svmProbModel23 = fitPosterior(svmMdl23);
+% 
+% % 新しいデータに対する予測
+% [preLabel23, preScores23] = predict(svmProbModel23, X23);
+% 
+% % モデルのクラス順序を確認
+% classOrder23 = svmProbModel23.ClassNames;
 
-% 確率出力を可能にするモデルに変換
-svmProbModel23 = fitPosterior(svmMdl23);
+% 修正後モデル
+% bestParams = optimizeGridSearch(X23, y23, kernelFunctions, kernelScale, boxConstraint);
+% t = templateSVM('KernelFunction', bestParams.kernelFunction{1}, 'KernelScale', bestParams.kernelScale, 'BoxConstraint', bestParams.boxConstraint);
+% bestParams.kernelFunction{1}, bestParams.kernelScale, bestParams.boxConstraint
 
-% 新しいデータに対する予測
-[preLabel23, preScores23] = predict(svmProbModel23, X23);
-
-% モデルのクラス順序を確認
-classOrder23 = svmProbModel23.ClassNames;
+t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
+svmMdl23 = fitcecoc(X23, y23, 'Learners', t);
 
 % クロスバリデーションによる平均分類誤差の計算
 CVSVMModel23 = crossval(svmMdl23, 'KFold', K); % Kは分割数
@@ -284,16 +297,20 @@ X12 = SVMDataSet12;
 y12 = SVMLabels12;
 
 % SVMモデル
-svmMdl12 = fitcsvm(X12, y12, 'OptimizeHyperparameters', 'auto', 'Standardize', true, 'ClassNames', [1,2]);
+% svmMdl12 = fitcsvm(X12, y12, 'OptimizeHyperparameters', 'auto', 'Standardize', true, 'ClassNames', [1,2]);
 
-% 確率出力を可能にするモデルに変換
-svmProbModel12 = fitPosterior(svmMdl12);
+% % 確率出力を可能にするモデルに変換
+% svmProbModel12 = fitPosterior(svmMdl12);
+% 
+% % 新しいデータに対する予測
+% [preLabel12, preScores12] = predict(svmProbModel12, X12);
+% 
+% % モデルのクラス順序を確認
+% classOrder12 = svmProbModel12.ClassNames;
 
-% 新しいデータに対する予測
-[preLabel12, preScores12] = predict(svmProbModel12, X12);
-
-% モデルのクラス順序を確認
-classOrder12 = svmProbModel12.ClassNames;
+% 修正後モデル
+t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
+svmMdl12 = fitcecoc(X12, y12, 'Learners', t);
 
 % クロスバリデーションによる平均分類誤差の計算
 CVSVMModel12 = crossval(svmMdl12, 'KFold', K); % Kは分割数
@@ -322,16 +339,23 @@ X13 = SVMDataSet13;
 y13 = SVMLabels13;
 
 % SVMモデル
-svmMdl13 = fitcsvm(X13, y13, 'OptimizeHyperparameters', 'auto', 'Standardize', true, 'ClassNames', [1,3]);
+% svmMdl13 = fitcsvm(X13, y13, 'OptimizeHyperparameters', 'auto', 'Standardize', true, 'ClassNames', [1,3]);
+% % テスト
+% t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
+% svmMdl13 = fitcecoc(X13, y13, 'Learners', t);
+% 
+% % 確率出力を可能にするモデルに変換
+% svmProbModel13 = fitPosterior(svmMdl13);
+% 
+% % 新しいデータに対する予測
+% [preLabel13, preScores13] = predict(svmProbModel13, X13);
+% 
+% % モデルのクラス順序を確認
+% classOrder13 = svmProbModel13.ClassNames;
 
-% 確率出力を可能にするモデルに変換
-svmProbModel13 = fitPosterior(svmMdl13);
-
-% 新しいデータに対する予測
-[preLabel13, preScores13] = predict(svmProbModel13, X13);
-
-% モデルのクラス順序を確認
-classOrder13 = svmProbModel13.ClassNames;
+% 修正後モデル
+t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
+svmMdl13 = fitcecoc(X13, y13, 'Learners', t);
 
 % クロスバリデーションによる平均分類誤差の計算
 CVSVMModel13 = crossval(svmMdl13, 'KFold', K); % Kは分割数
