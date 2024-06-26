@@ -203,79 +203,79 @@ labelClass1 = repmat(1, size(dataClass1, 1), 1);
 labelClass2 = repmat(2, size(dataClass2, 1), 1);
 
 
-%% テスト
-% データの前処理と拡張
-preprocessedData = preprocessData(eegData, filtOrder, minf, maxf);
-augmentedData = augmentEEGData(preprocessedData, 'num_augmentations', 5);
-
-% エポック化とデータセット構築
-movieStart = readmatrix(csvFilename);
-DataSet = cell(nTrials, 6); % オリジナル + 5倍の拡張データ
-labelSet = zeros(nTrials, 6);
-
-for ii = 1:movieTimes
-    st = movieStart(ii, 2);
-    
-    for jj = 1:labelNum
-        for kk = 1:length(Ch)
-            startIdx = round(Fs*((st+5)+6*(jj-1))) + 1;
-            endIdx = startIdx + Fs*1 - 1;
-            
-            % オリジナルデータのエポック化
-            for ll = 1:overlap
-                DataSet{singleTrials*(ii-1)+overlap*(jj-1)+ll, 1}(kk,:) = preprocessedData(kk, startIdx+round((ll-1)*Fs*shiftRatio):endIdx+round((ll-1)*Fs*shiftRatio));
-            end
-
-            % 拡張データのエポック化
-            for mm = 2:6 % 5倍に拡張
-                for ll = 1:overlap
-                    DataSet{singleTrials*(ii-1)+overlap*(jj-1)+ll, mm}(kk,:) = augmentEEGData(preprocessedData(kk, startIdx+round((ll-1)*Fs*shiftRatio):endIdx+round((ll-1)*Fs*shiftRatio)), 1, 150, 0.1);
-                end
-            end
-        end
-    end
-end
-
-% クラスごとにデータを分割
-uniqueLabels = unique(labelSet);
-labelData = cell(length(uniqueLabels), 1);
-
-for i = 1:length(uniqueLabels)
-    labelData{i} = DataSet(labelSet == uniqueLabels(i));
-end
-
-dataClass1 = labelData{uniqueLabels == 1};
-dataClass2 = labelData{uniqueLabels == 2};
-
-labelClass1 = repmat(1, size(dataClass1, 1), 1);
-labelClass2 = repmat(2, size(dataClass2, 1), 1);
-
-% CSP特徴抽出
-[cspClass1, cspClass2, cspFilters] = processCSPData2Class(dataClass1, dataClass2);
-SVMDataSet = [cspClass1; cspClass2];
-SVMLabels = [labelClass1; labelClass2];
-
-% SVMモデルの学習と評価
-X = SVMDataSet;
-y = SVMLabels;
-
-svmMdl = fitcsvm(X, y, 'OptimizeHyperparameters', 'auto', 'Standardize', true, 'ClassNames', [1,2]);
-svmProbModel = fitPosterior(svmMdl);
-
-[preLabel, preScores] = predict(svmProbModel, X);
-
-classOrder = svmProbModel.ClassNames;
-
-% 交差検証による精度評価
-CVSVMModel = crossval(svmMdl, 'KFold', K);
-loss = kfoldLoss(CVSVMModel);
-meanAccuracy = 1 - loss;
-
-% 結果の表示
-disp(['Class 1: ', num2str(size(dataClass1, 1))]);
-disp(['Class 2: ', num2str(size(dataClass2, 1))]);
-disp(['Accuracy: ', num2str(meanAccuracy * 100), '%']);
-close('all');
+% %% テスト
+% % データの前処理と拡張
+% preprocessedData = preprocessData(eegData, filtOrder, minf, maxf);
+% augmentedData = augmentEEGData(preprocessedData, 'num_augmentations', 5);
+% 
+% % エポック化とデータセット構築
+% movieStart = readmatrix(csvFilename);
+% DataSet = cell(nTrials, 6); % オリジナル + 5倍の拡張データ
+% labelSet = zeros(nTrials, 6);
+% 
+% for ii = 1:movieTimes
+%     st = movieStart(ii, 2);
+%     
+%     for jj = 1:labelNum
+%         for kk = 1:length(Ch)
+%             startIdx = round(Fs*((st+5)+6*(jj-1))) + 1;
+%             endIdx = startIdx + Fs*1 - 1;
+%             
+%             % オリジナルデータのエポック化
+%             for ll = 1:overlap
+%                 DataSet{singleTrials*(ii-1)+overlap*(jj-1)+ll, 1}(kk,:) = preprocessedData(kk, startIdx+round((ll-1)*Fs*shiftRatio):endIdx+round((ll-1)*Fs*shiftRatio));
+%             end
+% 
+%             % 拡張データのエポック化
+%             for mm = 2:6 % 5倍に拡張
+%                 for ll = 1:overlap
+%                     DataSet{singleTrials*(ii-1)+overlap*(jj-1)+ll, mm}(kk,:) = augmentEEGData(preprocessedData(kk, startIdx+round((ll-1)*Fs*shiftRatio):endIdx+round((ll-1)*Fs*shiftRatio)), 1, 150, 0.1);
+%                 end
+%             end
+%         end
+%     end
+% end
+% 
+% % クラスごとにデータを分割
+% uniqueLabels = unique(labelSet);
+% labelData = cell(length(uniqueLabels), 1);
+% 
+% for i = 1:length(uniqueLabels)
+%     labelData{i} = DataSet(labelSet == uniqueLabels(i));
+% end
+% 
+% dataClass1 = labelData{uniqueLabels == 1};
+% dataClass2 = labelData{uniqueLabels == 2};
+% 
+% labelClass1 = repmat(1, size(dataClass1, 1), 1);
+% labelClass2 = repmat(2, size(dataClass2, 1), 1);
+% 
+% % CSP特徴抽出
+% [cspClass1, cspClass2, cspFilters] = processCSPData2Class(dataClass1, dataClass2);
+% SVMDataSet = [cspClass1; cspClass2];
+% SVMLabels = [labelClass1; labelClass2];
+% 
+% % SVMモデルの学習と評価
+% X = SVMDataSet;
+% y = SVMLabels;
+% 
+% svmMdl = fitcsvm(X, y, 'OptimizeHyperparameters', 'auto', 'Standardize', true, 'ClassNames', [1,2]);
+% svmProbModel = fitPosterior(svmMdl);
+% 
+% [preLabel, preScores] = predict(svmProbModel, X);
+% 
+% classOrder = svmProbModel.ClassNames;
+% 
+% % 交差検証による精度評価
+% CVSVMModel = crossval(svmMdl, 'KFold', K);
+% loss = kfoldLoss(CVSVMModel);
+% meanAccuracy = 1 - loss;
+% 
+% % 結果の表示
+% disp(['Class 1: ', num2str(size(dataClass1, 1))]);
+% disp(['Class 2: ', num2str(size(dataClass2, 1))]);
+% disp(['Accuracy: ', num2str(meanAccuracy * 100), '%']);
+% close('all');
 
 
 %% 脳波データ解析
