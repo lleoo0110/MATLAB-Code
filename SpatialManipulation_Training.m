@@ -39,7 +39,7 @@ disp('Now receiving data...');
 global isRunning Fs minf maxf nTrials Ch numFilter filtOrder labelName csvFilename singleTrials  t csv_file
 minf = 1;
 maxf = 40;
-filtOrder = 2000;
+filtOrder = 1500;
 isRunning = false;
 movieTimes = 4;
 overlap = 4;
@@ -53,7 +53,7 @@ nTrials = movieTimes * labelNum * overlap;
 singleTrials = labelNum * overlap;
 
 % データセットの名前を指定
-name = 'itchy_VI'; % ここを変更
+name = 'aaa'; % ここを変更
 datasetName12 = [name '_dataset12'];
 datasetName23 = [name '_dataset23'];
 datasetName13 = [name '_dataset13'];
@@ -64,7 +64,7 @@ labelName = 'stimulus';
 % グリッドリサーチ パラメータの範囲を定義
 kernelFunctions = {'linear', 'rbf', 'polynomial'};
 kernelScale = [0.1, 1, 10];
-boxConstraint = [0.1, 1, 100];
+boxConstraint = [0.1, 1, 10, 100];
 
 % EPOC X
 Fs = 256;
@@ -263,12 +263,12 @@ y23 = SVMLabels23;
 % classOrder23 = svmProbModel23.ClassNames;
 
 % 修正後モデル
-% bestParams = optimizeGridSearch(X23, y23, kernelFunctions, kernelScale, boxConstraint);
-% t = templateSVM('KernelFunction', bestParams.kernelFunction{1}, 'KernelScale', bestParams.kernelScale, 'BoxConstraint', bestParams.boxConstraint);
-% bestParams.kernelFunction{1}, bestParams.kernelScale, bestParams.boxConstraint
+% t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
+% svmMdl23 = fitcecoc(X23, y23, 'Learners', t);
 
-t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
-svmMdl23 = fitcecoc(X23, y23, 'Learners', t);
+% オフライン解析時にこちらのモデルを使う
+[bestAccuracy, bestParams] = optimizeGridSearch(X23, y23, kernelFunctions, kernelScale, boxConstraint, K);
+t = templateSVM('KernelFunction', bestParams.kernelFunction(1), 'KernelScale', bestParams.kernelScale, 'BoxConstraint', bestParams.boxConstraint);
 
 % クロスバリデーションによる平均分類誤差の計算
 CVSVMModel23 = crossval(svmMdl23, 'KFold', K); % Kは分割数
@@ -310,6 +310,10 @@ y12 = SVMLabels12;
 
 % 修正後モデル
 t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
+
+% [bestAccuracy, bestParams] = optimizeGridSearch(X12, y12, kernelFunctions, kernelScale, boxConstraint, K);
+% t = templateSVM('KernelFunction', bestParams.kernelFunction{1}, 'KernelScale', bestParams.kernelScale, 'BoxConstraint', bestParams.boxConstraint);
+
 svmMdl12 = fitcecoc(X12, y12, 'Learners', t);
 
 % クロスバリデーションによる平均分類誤差の計算

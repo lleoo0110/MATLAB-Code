@@ -1,4 +1,4 @@
-function bestParams = optimizeGridSearch(X, y, kernelFunctions, kernelScale, boxConstraint)
+function [bestAccuracy, bestParams] = optimizeGridSearch(X, y, kernelFunctions, kernelScale, boxConstraint, K)
     bestAccuracy = 0;
     bestParams.kernelFunction = {};
     bestParams.kernelScale = [];
@@ -10,10 +10,14 @@ function bestParams = optimizeGridSearch(X, y, kernelFunctions, kernelScale, box
     
     % 並列処理のための変数の初期化
     accuracy = zeros(size(params, 1), 1);
-    
+        
     % parforを用いた並列処理
     parfor i = 1:size(params, 1)
-        [accuracy(i), ~] = crossvalidation(X, y, params{i, 1}, params{i, 2}, params{i, 3}, 5);
+        t = templateSVM('KernelFunction', params{i, 1}, 'KernelScale', params{i, 2}, 'BoxConstraint', params{i, 3});
+        svmMdl = fitcecoc(X, y, 'Learners', t);
+        CVSVMModel = crossval(svmMdl, 'KFold', K); % Kは分割数
+        loss = kfoldLoss(CVSVMModel);
+        accuracy(i, 1) = 1-loss;
     end
     
     % 最良の結果を取得
