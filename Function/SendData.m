@@ -1,6 +1,6 @@
 function SendData(data)
     % UDPオブジェクトの作成
-    u = udp('127.0.0.1', 'RemotePort', 12345);
+    u = udp('127.0.0.1', 'RemotePort', 12354);
     fopen(u);
 
     % 整数をバイト配列に変換

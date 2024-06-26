@@ -39,7 +39,7 @@ disp('Now receiving data...');
 global isRunning Fs minf maxf nTrials Ch numFilter filtOrder labelName csvFilename singleTrials  t csv_file
 minf = 1;
 maxf = 40;
-filtOrder = 400;
+filtOrder = 2000;
 isRunning = false;
 movieTimes = 4;
 overlap = 4;
@@ -53,7 +53,7 @@ nTrials = movieTimes * labelNum * overlap;
 singleTrials = labelNum * overlap;
 
 % データセットの名前を指定
-name = 'yabuchan_multi_2'; % ここを変更
+name = 'itchy_VI'; % ここを変更
 datasetName12 = [name '_dataset12'];
 datasetName23 = [name '_dataset23'];
 datasetName13 = [name '_dataset13'];
