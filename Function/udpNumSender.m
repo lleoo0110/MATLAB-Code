@@ -1,4 +1,4 @@
-function SendData(data)
+function udpNumSender(data)
     % UDPオブジェクトの作成
     u = udp('127.0.0.1', 'RemotePort', 12345);
     fopen(u);

@@ -1,4 +1,4 @@
-function UDPSender(message)
+function udpTextSender(message)
     % UDPソケットの作成
     udpSocket = udp('localhost', 12345);
     udpSocket.OutputBufferSize = 1024;

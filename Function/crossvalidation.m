@@ -3,10 +3,11 @@ function [meanAccuracy, svmMdl] = crossvalidation(Data, label, K)
 X = Data;
 y = label;
 
-c = cvpartition(length(y), 'KFold', K);
-opts = struct('CVPartition', c, 'AcquisitionFunctionName', 'expected-improvement-plus');
-svmMdl = fitcsvm(X, y, 'OptimizeHyperparameters', 'auto', 'HyperparameterOptimizationOptions', opts);
-% svmMdl = fitcsvm(X, y, 'OptimizeHyperparameters', 'auto');
+svmMdl = fitcsvm(X, y, 'OptimizeHyperparameters', 'auto');
+
+% t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
+% % SVMモデルの訓練
+% svmMdl = fitcecoc(X, y, 'Learners', t);
 
 % 交差検証による精度評価
 CVSVMModel = crossval(svmMdl, 'KFold', K);

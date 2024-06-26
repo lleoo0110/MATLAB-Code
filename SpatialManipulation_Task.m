@@ -57,7 +57,7 @@ disp('Now receiving data...');
 global Fs minf maxf filtOrder numFilter isRunning
 minf = 1;
 maxf = 40;
-filtOrder = 400;
+filtOrder = 1500;
 
 % EPOC X
 Fs = 256;
@@ -70,7 +70,7 @@ numFilter =7;
 % Ch = {'T7','T8'};
 % selectedChannels = [4, 5]; % T7, T8のデータを選択
 
-windowSize = 10; % ウィンドウサイズ（秒）
+windowSize = 20; % ウィンドウサイズ（秒）
 stepSize = 0.25; % ステップサイズ（秒）
 samplesPerWindow = windowSize * Fs; % ウィンドウ内のサンプル数
 stepSamples = stepSize * Fs; % ステップサイズに相当するサンプル数
@@ -134,7 +134,7 @@ while isRunning
         
         % Unityへのデータ通信
         disp(predictedClass);
-        SendData(predictedClass);
+        udpNumSender(predictedClass);
          
         % データバッファの更新
         dataBuffer = dataBuffer(:, (stepSamples+1):end); % オーバーラップを保持

@@ -39,7 +39,7 @@ disp('Now receiving data...');
 global isRunning Fs minf maxf nTrials Ch numFilter filtOrder labelName csvFilename singleTrials
 minf = 1;
 maxf = 40;
-filtOrder = 400;
+filtOrder = 1500;
 isRunning = false;
 movieTimes = 2;
 overlap = 4;
