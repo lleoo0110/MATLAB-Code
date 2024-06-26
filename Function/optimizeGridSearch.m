@@ -1,52 +1,24 @@
 function bestParams = optimizeGridSearch(X, y, kernelFunctions, kernelScale, boxConstraint)
-    % ベストパラメータと最小損失の初期化
-    minLoss = inf;
-    bestParams = struct();
-
-    % ブロッククロスバリデーション
-    for kernelFunction = kernelFunctions
-        for scale = kernelScale
-            for constraint = boxConstraint
-                numBlocks = 10;
-                t = templateSVM('KernelFunction', kernelFunction{1}, 'KernelScale', scale, 'BoxConstraint', constraint);
-
-                % データセットのブロックサイズを計算
-                blockSize = ceil(size(X, 1) / numBlocks);
-
-                % 精度のための事前割り当て
-                accuracy = zeros(numBlocks, 1);
-
-                % 並列処理のためのparforループ
-                parfor i = 1:numBlocks
-                    % ブロックのインデックスを計算
-                    startIndex = (i - 1) * blockSize + 1;
-                    endIndex = min(i * blockSize, size(X, 1));
-
-                    % テストセットとトレーニングセットを分割
-                    X_test = X(startIndex:endIndex, :);
-                    y_test = y(startIndex:endIndex, :);
-                    X_train = X([1:startIndex-1, endIndex+1:end], :);
-                    y_train = y([1:startIndex-1, endIndex+1:end], :);
-
-                    % モデルの訓練
-                    Mdl = fitcecoc(X_train, y_train, 'Learners', t);
-
-                    % テストセットでの評価
-                    predictions = predict(Mdl, X_test);
-                    accuracy(i) = sum(predictions == y_test) / length(y_test);
-                end
-
-                % 全ブロックでの平均精度を計算
-                meanAccuracy = mean(accuracy);
-                loss = 1 - meanAccuracy;
-
-                if loss < minLoss
-                    minLoss = loss;
-                    bestParams.kernelFunction = kernelFunction;
-                    bestParams.kernelScale = scale;
-                    bestParams.boxConstraint = constraint;
-                end
-            end
-        end
+    bestAccuracy = 0;
+    bestParams.kernelFunction = {};
+    bestParams.kernelScale = [];
+    bestParams.boxConstraint = [];
+    
+    % グリッドサーチのパラメータの組み合わせを生成
+    [KF, KS, BC] = ndgrid(kernelFunctions, kernelScale, boxConstraint);
+    params = [KF(:), num2cell(KS(:)), num2cell(BC(:))];
+    
+    % 並列処理のための変数の初期化
+    accuracy = zeros(size(params, 1), 1);
+    
+    % parforを用いた並列処理
+    parfor i = 1:size(params, 1)
+        [accuracy(i), ~] = crossvalidation(X, y, params{i, 1}, params{i, 2}, params{i, 3}, 5);
     end
+    
+    % 最良の結果を取得
+    [bestAccuracy, bestIdx] = max(accuracy);
+    bestParams.kernelFunction = params{bestIdx, 1};
+    bestParams.kernelScale = params{bestIdx, 2};
+    bestParams.boxConstraint = params{bestIdx, 3};
 end
