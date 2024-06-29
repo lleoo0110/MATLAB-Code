@@ -71,7 +71,7 @@ numFilter =7;
 % selectedChannels = [4, 5]; % T7, T8のデータを選択
 
 windowSize = 20; % ウィンドウサイズ（秒）
-stepSize = 0.25; % ステップサイズ（秒）
+stepSize = 1; % ステップサイズ（秒）
 samplesPerWindow = windowSize * Fs; % ウィンドウ内のサンプル数
 stepSamples = stepSize * Fs; % ステップサイズに相当するサンプル数
 

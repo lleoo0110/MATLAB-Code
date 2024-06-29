@@ -53,7 +53,7 @@ nTrials = movieTimes * labelNum * overlap;
 singleTrials = labelNum * overlap;
 
 % データセットの名前を指定
-name = 'aaa'; % ここを変更
+name = 'gi-ta_VI'; % ここを変更
 datasetName12 = [name '_dataset12'];
 datasetName23 = [name '_dataset23'];
 datasetName13 = [name '_dataset13'];
@@ -136,7 +136,7 @@ while isRunning
         fileIndex = fileIndex + 1; % 連番を増加
     end
 
-    pause(0.0001); % 応答性を保つための短い休止
+    pause(0.0001); % 応I答性を保つための短い休止
 end
 
 % 最後の未保存データを保存
@@ -263,12 +263,12 @@ y23 = SVMLabels23;
 % classOrder23 = svmProbModel23.ClassNames;
 
 % 修正後モデル
-% t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
-% svmMdl23 = fitcecoc(X23, y23, 'Learners', t);
+t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
+ svmMdl23 = fitcecoc(X23, y23, 'Learners', t);
 
 % オフライン解析時にこちらのモデルを使う
-[bestAccuracy, bestParams] = optimizeGridSearch(X23, y23, kernelFunctions, kernelScale, boxConstraint, K);
-t = templateSVM('KernelFunction', bestParams.kernelFunction(1), 'KernelScale', bestParams.kernelScale, 'BoxConstraint', bestParams.boxConstraint);
+%[bestAccuracy, bestParams] = optimizeGridSearch(X23, y23, kernelFunctions, kernelScale, boxConstraint, K);
+%t = templateSVM('KernelFunction', bestParams.kernelFunction(1), 'KernelScale', bestParams.kernelScale, 'BoxConstraint', bestParams.boxConstraint);
 
 % クロスバリデーションによる平均分類誤差の計算
 CVSVMModel23 = crossval(svmMdl23, 'KFold', K); % Kは分割数
