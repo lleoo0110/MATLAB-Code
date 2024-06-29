@@ -32,10 +32,8 @@ for k = 1:inf.channel_count()
 end
 
 
-%%  脳波データ計測
+%%  パラメータ設定
 disp('Now receiving data...');
-
-%% パラメータ設定
 global isRunning Fs minf maxf nTrials Ch numFilter filtOrder labelName csvFilename singleTrials
 minf = 1;
 maxf = 40;
@@ -44,19 +42,19 @@ isRunning = false;
 movieTimes = 2;
 overlap = 4;
 
-% データセットの名前を指定
-name = 'colors_sui-sui'; % ここを変更
-datasetName = [name '_dataset'];
-dataName = name;
-csvFilename = [name '_label.csv'];
-labelName = 'stimulus';
-
 % ラベル作成
 label = readmatrix('labels/Experiment_Shiori.csv');
 labelNum = size(label, 1);
 
 nTrials = movieTimes * labelNum * overlap;
 singleTrials = labelNum * overlap;
+
+% データセットの名前を指定
+name = 'test'; % ここを変更
+datasetName = [name '_dataset'];
+dataName = name;
+csvFilename = [name '_label.csv'];
+labelName = 'stimulus';
 
 % EPOC X
 Fs = 256;
@@ -65,17 +63,11 @@ selectedChannels = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]; % 'AF3','
 numFilter = 7;
 K=10;
 
-% MN8
-% Fs = 128;
-% Ch = {'T7','T8'};
-% selectedChannels = [4, 5]; % T7, T8のデータを選択
-% numFilter = 1;
 
+%% 脳波データ計測
 % GUIの作成と表示
 createMovieStartGUI();
 
-
-%% 脳波データ計測
 eegData = [];
 preprocessedData = [];
 labels = [];
@@ -87,7 +79,6 @@ end
 
 % LSLバッファのクリア
 while ~isempty(inlet.pull_sample(0)) % 0秒のタイムアウトでpull_sampleを呼び出し、バッファが空になるまで繰り返す
-    
 end
 
 % EEGデータ収集
@@ -140,24 +131,15 @@ disp('データ解析中...しばらくお待ちください...');
 %%  データの前処理
 preprocessedData = preprocessData(eegData, filtOrder, minf, maxf);
 
-movieStart = readmatrix(csvFilename);
-% ラベル作成
-labels = [];
-for ii = 1:labelNum
-    for kk = 1:overlap
-       labels(overlap*(ii-1)+kk,1) = label(ii,1);
-    end
-end
-labels = repmat(labels, movieTimes, 1);
-
 % エポック化
+movieStart = readmatrix(csvFilename);
 for ii = 1:movieTimes
     % 刺激開始時間
     switch ii
         case 1
         st = movieStart(1,2);
         case 2
-        st = movieStart(2,2);
+        st = movieStart(1,2);
     end
     
     for jj = 1:labelNum
@@ -169,18 +151,62 @@ for ii = 1:movieTimes
             % データ数増加
             tt = 0;
             for ll = 1:overlap
-                DataSet{singleTrials*(ii-1)+overlap*(jj-1)+ll, 1}(kk,:) = preprocessedData(kk,startIdx+round(tt*Fs):endIdx+round(tt*Fs)); % tt秒後のデータ
-                tt = tt + 1;
+                dataClass{singleTrials*(ii-1)+overlap*(jj-1)+ll, 1}(kk,:) = preprocessedData(kk,startIdx+round(tt*Fs):endIdx+round(tt*Fs)); % tt秒後のデータ
+                tt = tt + 1.5;
             end
         end
     end
 end
 
 
-% データセットを保存
-save(datasetName, 'eegData', 'preprocessedData', 'movieStart');
-disp(['データセットが ', datasetName, ' として保存されました。']);
+%% データ保存
+save(datasetName, 'eegData', 'preprocessedData ', 'dataClass', 'movieStart');
 disp('データ解析完了しました');
+
+
+%% 脳波データ解析
+% 全組み合わせの分類精度算出
+accuracyMatrix = zeros(7, 7);
+% 全てのクラスの組み合わせについてループ
+for i = 1:7
+    for j = i+1:7
+        % クラスデータとラベルを取得
+        dataClassA = eval(['dataClass', num2str(i)]);
+        dataClassB = eval(['dataClass', num2str(j)]);
+        labelClassA = repmat(1, size(dataClassA, 1), 1);
+        labelClassB = repmat(2, size(dataClassB, 1), 1);
+        
+        % CSP特徴抽出
+        [cspClassA, cspClassB, cspFiltersAB] = processCSPData2Class(dataClassA, dataClassB);
+        SVMDataSet = [cspClassA; cspClassB];
+        SVMLabels = [labelClassA; labelClassB];
+        
+        % SVMモデルの学習
+        X = SVMDataSet;
+        y = SVMLabels;
+        
+        t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
+        svmMdl = fitcecoc(X, y, 'Learners', t);
+        
+        % 交差検証による精度評価
+        CVSVMModel = crossval(svmMdl, 'KFold', K);
+        loss = kfoldLoss(CVSVMModel);
+        meanAccuracy = 1 - loss;
+        
+        % 分類精度を行列に保存
+        accuracyMatrix(i, j) = meanAccuracy;
+        accuracyMatrix(j, i) = meanAccuracy;
+        
+        % 分類精度を表示
+        disp(['Class ', num2str(i), ' vs Class ', num2str(j), ': ', num2str(meanAccuracy * 100), '%']);
+        close('all');
+    end
+end
+
+% 分類精度行列を表示
+disp('Accuracy Matrix:');
+disp(accuracyMatrix);
+
 
 
 %% ボタン構成

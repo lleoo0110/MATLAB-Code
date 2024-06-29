@@ -53,10 +53,8 @@ nTrials = movieTimes * labelNum * overlap;
 singleTrials = labelNum * overlap;
 
 % データセットの名前を指定
-name = 'yabuchan_multi_2'; % ここを変更
-datasetName12 = [name '_dataset12'];
-datasetName23 = [name '_dataset23'];
-datasetName13 = [name '_dataset13'];
+name = 'testLLEOO_MI'; % ここを変更
+datasetName = [name '_dataset'];
 dataName = name;
 csvFilename = [name '_label.csv'];
 labelName = 'stimulus';
@@ -171,7 +169,7 @@ disp('データ解析中...しばらくお待ちください...');
 preprocessedData = preprocessData(eegData, filtOrder, minf, maxf);
 
 % ラベル作成
-label = readmatrix('labels/SpatialAudio_Training.csv');
+label = readmatrix('labels/VRLocomotion_Training.csv');
 labels = [];
 for ii = 1:labelNum
     for kk = 1:overlap
@@ -199,7 +197,7 @@ for ii = 1:movieTimes
     for jj = 1:labelNum
         for kk = 1:length(Ch)
             % 2秒間のデータを抽出
-            startIdx = round(Fs*((st+10)+15*(jj-1))) + 1;
+            startIdx = round(Fs*((st+5)+10*(jj-1))) + 1;
             endIdx = startIdx + Fs*2 - 1;
 
             % エポック
@@ -226,12 +224,10 @@ for i = 1:length(uniqueLabels)
 end
 dataClass1 = labelData{uniqueLabels == 1};
 dataClass2 = labelData{uniqueLabels == 2};
-dataClass3 = labelData{uniqueLabels == 3};
 
 % ラベルの配列を作成
 labelClass1 = repmat(1, size(dataClass1, 1), 1);
 labelClass2 = repmat(2, size(dataClass2, 1), 1);
-labelClass3 = repmat(3, size(dataClass3, 1), 1);
 
 
 %% 脳波データ解析
@@ -240,15 +236,15 @@ disp('データ解析中...しばらくお待ちください...');
 
 %% オブジェクト前方移動(2) VS オブジェクト後方移動(3)
 % CSPデータセット
-[cspClass2, cspClass3, cspFilters23] = processCSPData2Class(dataClass2, dataClass3);
-SVMDataSet23 = [cspClass2; cspClass3];
-SVMLabels23 = [labelClass2; labelClass3];
+[cspClass1, cspClass2, cspFilters] = processCSPData2Class(dataClass1, dataClass2);
+SVMDataSet = [cspClass1; cspClass2];
+SVMLabels = [labelClass1; labelClass2];
 
 % 分類精度計算
-meanAccuracy23 = zeros(1, 1);
+meanAccuracy = zeros(1, 1);
 % データ
-X23 = SVMDataSet23;
-y23 = SVMLabels23;
+X = SVMDataSet;
+y = SVMLabels;
 
 % SVMモデル
 % svmMdl23 = fitcsvm(X23, y23, 'OptimizeHyperparameters', 'auto', 'Standardize', true, 'ClassNames', [2,3]);
@@ -266,23 +262,23 @@ y23 = SVMLabels23;
 % t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
 
 % オフライン解析時にこちらのモデルを使う
-[bestAccuracy, bestParams] = optimizeGridSearch(X23, y23, kernelFunctions, kernelScale, boxConstraint, K);
+[bestAccuracy, bestParams] = optimizeGridSearch(X, y, kernelFunctions, kernelScale, boxConstraint, K);
 t = templateSVM('KernelFunction', bestParams.kernelFunction(1), 'KernelScale', bestParams.kernelScale, 'BoxConstraint', bestParams.boxConstraint);
 
-svmMdl23 = fitcecoc(X23, y23, 'Learners', t);
+svmMdl = fitcecoc(X, y, 'Learners', t);
 
 % クロスバリデーションによる平均分類誤差の計算
-CVSVMModel23 = crossval(svmMdl23, 'KFold', K); % Kは分割数
-loss = kfoldLoss(CVSVMModel23);
-meanAccuracy23 = 1-loss;
+CVSVMModel = crossval(svmMdl, 'KFold', K); % Kは分割数
+loss = kfoldLoss(CVSVMModel);
+meanAccuracy = 1-loss;
 
-disp(['Class 2: ', num2str(size(dataClass2, 1))]);
-disp(['Class 3: ', num2str(size(dataClass3, 1))]);
-disp(['Accuracy23', '：', num2str(meanAccuracy23 * 100), '%']);
+disp(['Class 2: ', num2str(size(dataClass1, 1))]);
+disp(['Class 3: ', num2str(size(dataClass2, 1))]);
+disp(['Accuracy23', '：', num2str(meanAccuracy * 100), '%']);
 
 % データセットを保存
-save(datasetName23, 'eegData', 'preprocessedData', 'SVMDataSet23', 'SVMLabels23', 'cspFilters23', 'svmMdl23');
-disp(['データセットが ', datasetName23, ' として保存されました。']);
+save(datasetName, 'eegData', 'preprocessedData', 'SVMDataSet23', 'SVMLabels23', 'cspFilters23', 'svmMdl23', 'movieStart');
+disp(['データセットが ', datasetName, ' として保存されました。']);
 
 
 %% 安静(1) VS オブジェクト前方移動(2)
