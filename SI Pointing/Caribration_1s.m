@@ -37,13 +37,13 @@ disp('Now receiving data...');
 
 %% パラメータ設定
 global isRunning Fs minf maxf nTrials Ch numFilter filtOrder labelName csvFilename singleTrials
-minf = 1;
-maxf = 40;
+minf = 13;
+maxf = 30;
 filtOrder = 400;
 isRunning = false;
 movieTimes = 4;
-labelNum = 24;
-overlap = 4;
+labelNum = 50;
+overlap = 1;
 nTrials = movieTimes * labelNum * overlap;
 singleTrials = labelNum * overlap;
 
@@ -143,7 +143,7 @@ preprocessedData = preprocessData(eegData, filtOrder, minf, maxf);
 
 
 % ラベル作成
-label = readmatrix('labels/Experiment_label2.csv');
+label = readmatrix('labels/Experiment_label.csv');
 labels = [];
 for ii = 1:labelNum
     for kk = 1:overlap
@@ -170,8 +170,8 @@ for ii = 1:movieTimes
     for jj = 1:labelNum
         for kk = 1:length(Ch)
             % 2秒間のデータを抽出
-            startIdx = round(Fs*((st+7)+5*(jj-1))) + 1;
-            endIdx = startIdx + Fs*2 - 1;
+            startIdx = round(Fs*((st+7)+12*(jj-1))) + 1;
+            endIdx = startIdx + Fs*1 - 1;
 
             % エポック
             tt = 0;
@@ -233,7 +233,7 @@ disp(['データセットが ', datasetName, ' として保存されました。
 disp('データ解析完了しました');
 
 
-%% ボタン構成
+% ボタン構成
 function createMovieStartGUI()
     global t csv_file label_name startButton stopButton labelButton csvFilename; % グローバル変数の宣言
     % GUIの作成と設定をここに記述
