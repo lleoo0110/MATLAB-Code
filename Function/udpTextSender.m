@@ -1,6 +1,7 @@
 function udpTextSender(message)
+    global portNumber
     % UDPソケットの作成
-    udpSocket = udp('localhost', 12345);
+    udpSocket = udp('localhost', portNumber);
     udpSocket.OutputBufferSize = 1024;
     
     % UDPソケットを開く

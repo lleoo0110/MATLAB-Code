@@ -36,7 +36,7 @@ end
 disp('Now receiving data...');
 
 %% パラメータ設定
-global isRunning Fs minf maxf nTrials Ch numFilter filtOrder labelName csvFilename singleTrials  t csv_file
+global isRunning Fs minf maxf nTrials Ch numFilter filtOrder labelName csvFilename singleTrials  t csv_file portNumber
 minf = 1;
 maxf = 40;
 filtOrder = 1500;
@@ -46,23 +46,23 @@ overlap = 4;
 portNumber = 12354; % UDPポート番号
 
 % ラベル作成
-label = readmatrix('labels/SpatialAudio_Training.csv');
+label = readmatrix('labels/VRLocomotion_Training.csv');
 labelNum = size(label, 1);
 
 nTrials = movieTimes * labelNum * overlap;
 singleTrials = labelNum * overlap;
 
 % データセットの名前を指定
-name = 'testLLEOO_MI'; % ここを変更
+name = 'takerun_MI'; % ここを変更
 datasetName = [name '_dataset'];
 dataName = name;
 csvFilename = [name '_label.csv'];
 labelName = 'stimulus';
 
 % グリッドリサーチ パラメータの範囲を定義
-kernelFunctions = {'linear', 'rbf', 'polynomial'};
-kernelScale = [0.1, 1, 10];
-boxConstraint = [0.1, 1, 10, 100];
+% kernelFunctions = {'linear', 'rbf', 'polynomial'};
+% kernelScale = [0.1, 1, 10];
+% boxConstraint = [0.1, 1, 10, 100];
 
 % EPOC X
 Fs = 256;
@@ -169,7 +169,6 @@ disp('データ解析中...しばらくお待ちください...');
 preprocessedData = preprocessData(eegData, filtOrder, minf, maxf);
 
 % ラベル作成
-label = readmatrix('labels/VRLocomotion_Training.csv');
 labels = [];
 for ii = 1:labelNum
     for kk = 1:overlap
@@ -234,7 +233,7 @@ labelClass2 = repmat(2, size(dataClass2, 1), 1);
 disp('データ解析中...しばらくお待ちください...');
 
 
-%% オブジェクト前方移動(2) VS オブジェクト後方移動(3)
+%% 安静 vs 歩行イメージ
 % CSPデータセット
 [cspClass1, cspClass2, cspFilters] = processCSPData2Class(dataClass1, dataClass2);
 SVMDataSet = [cspClass1; cspClass2];
@@ -247,133 +246,38 @@ X = SVMDataSet;
 y = SVMLabels;
 
 % SVMモデル
-% svmMdl23 = fitcsvm(X23, y23, 'OptimizeHyperparameters', 'auto', 'Standardize', true, 'ClassNames', [2,3]);
-% 
-% % 確率出力を可能にするモデルに変換
-% svmProbModel23 = fitPosterior(svmMdl23);
-% 
-% % 新しいデータに対する予測
-% [preLabel23, preScores23] = predict(svmProbModel23, X23);
-% 
-% % モデルのクラス順序を確認
-% classOrder23 = svmProbModel23.ClassNames;
+svmMdl = fitcsvm(X, y, 'OptimizeHyperparameters', 'auto', 'Standardize', true, 'ClassNames', [1,2]);
+
+% 確率出力を可能にするモデルに変換
+svmProbModel = fitPosterior(svmMdl);
+
+% 新しいデータに対する予測
+[preLabel, preScores] = predict(svmProbModel, X);
+
+% モデルのクラス順序を確認
+classOrder = svmProbModel.ClassNames;
 
 % 修正後モデル
 % t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
 
 % オフライン解析時にこちらのモデルを使う
-[bestAccuracy, bestParams] = optimizeGridSearch(X, y, kernelFunctions, kernelScale, boxConstraint, K);
-t = templateSVM('KernelFunction', bestParams.kernelFunction(1), 'KernelScale', bestParams.kernelScale, 'BoxConstraint', bestParams.boxConstraint);
+% [bestAccuracy, bestParams] = optimizeGridSearch(X, y, kernelFunctions, kernelScale, boxConstraint, K);
+% t = templateSVM('KernelFunction', bestParams.kernelFunction(1), 'KernelScale', bestParams.kernelScale, 'BoxConstraint', bestParams.boxConstraint);
 
-svmMdl = fitcecoc(X, y, 'Learners', t);
+% svmMdl = fitcecoc(X, y, 'Learners', t);
 
 % クロスバリデーションによる平均分類誤差の計算
 CVSVMModel = crossval(svmMdl, 'KFold', K); % Kは分割数
 loss = kfoldLoss(CVSVMModel);
 meanAccuracy = 1-loss;
 
-disp(['Class 2: ', num2str(size(dataClass1, 1))]);
-disp(['Class 3: ', num2str(size(dataClass2, 1))]);
-disp(['Accuracy23', '：', num2str(meanAccuracy * 100), '%']);
-
-% データセットを保存
-save(datasetName, 'eegData', 'preprocessedData', 'SVMDataSet23', 'SVMLabels23', 'cspFilters23', 'svmMdl23', 'movieStart');
-disp(['データセットが ', datasetName, ' として保存されました。']);
-
-
-%% 安静(1) VS オブジェクト前方移動(2)
-% CSPデータセット
-[cspClass1, cspClass2, cspFilters12] = processCSPData2Class(dataClass1, dataClass2);
-SVMDataSet12 = [cspClass1; cspClass2];
-SVMLabels12 = [labelClass1; labelClass2];
-
-% 分類精度計算
-meanAccuracy12 = zeros(1, 1);
-% データ
-X12 = SVMDataSet12;
-y12 = SVMLabels12;
-
-% SVMモデル
-% svmMdl12 = fitcsvm(X12, y12, 'OptimizeHyperparameters', 'auto', 'Standardize', true, 'ClassNames', [1,2]);
-
-% % 確率出力を可能にするモデルに変換
-% svmProbModel12 = fitPosterior(svmMdl12);
-% 
-% % 新しいデータに対する予測
-% [preLabel12, preScores12] = predict(svmProbModel12, X12);
-% 
-% % モデルのクラス順序を確認
-% classOrder12 = svmProbModel12.ClassNames;
-
-% 修正後モデル
-t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
-
-% [bestAccuracy, bestParams] = optimizeGridSearch(X12, y12, kernelFunctions, kernelScale, boxConstraint, K);
-% t = templateSVM('KernelFunction', bestParams.kernelFunction{1}, 'KernelScale', bestParams.kernelScale, 'BoxConstraint', bestParams.boxConstraint);
-
-svmMdl12 = fitcecoc(X12, y12, 'Learners', t);
-
-% クロスバリデーションによる平均分類誤差の計算
-CVSVMModel12 = crossval(svmMdl12, 'KFold', K); % Kは分割数
-loss = kfoldLoss(CVSVMModel12);
-meanAccuracy12 = 1-loss;
-
 disp(['Class 1: ', num2str(size(dataClass1, 1))]);
 disp(['Class 2: ', num2str(size(dataClass2, 1))]);
-disp(['Accuracy12', '：', num2str(meanAccuracy12 * 100), '%']);
+disp(['Accuracy', '：', num2str(meanAccuracy * 100), '%']);
 
 % データセットを保存
-save(datasetName12, 'eegData', 'preprocessedData', 'SVMDataSet12', 'SVMLabels12', 'cspFilters12', 'svmMdl12');
-disp(['データセットが ', datasetName12, ' として保存されました。']);
-
-
-%% 安静(1) VS オブジェクト後方移動(3)
-% CSPデータセット
-[cspClass1, cspClass3, cspFilters13] = processCSPData2Class(dataClass1, dataClass3);
-SVMDataSet13 = [cspClass1; cspClass3];
-SVMLabels13 = [labelClass1; labelClass3];
-
-% 分類精度計算
-meanAccuracy13 = zeros(1, 1);
-% データ
-X13 = SVMDataSet13;
-y13 = SVMLabels13;
-
-% SVMモデル
-% svmMdl13 = fitcsvm(X13, y13, 'OptimizeHyperparameters', 'auto', 'Standardize', true, 'ClassNames', [1,3]);
-% % テスト
-% t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
-% svmMdl13 = fitcecoc(X13, y13, 'Learners', t);
-% 
-% % 確率出力を可能にするモデルに変換
-% svmProbModel13 = fitPosterior(svmMdl13);
-% 
-% % 新しいデータに対する予測
-% [preLabel13, preScores13] = predict(svmProbModel13, X13);
-% 
-% % モデルのクラス順序を確認
-% classOrder13 = svmProbModel13.ClassNames;
-
-% 修正後モデル
-t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
-
-% [bestAccuracy, bestParams] = optimizeGridSearch(X12, y12, kernelFunctions, kernelScale, boxConstraint, K);
-% t = templateSVM('KernelFunction', bestParams.kernelFunction{1}, 'KernelScale', bestParams.kernelScale, 'BoxConstraint', bestParams.boxConstraint);
-
-svmMdl13 = fitcecoc(X13, y13, 'Learners', t);
-
-% クロスバリデーションによる平均分類誤差の計算
-CVSVMModel13 = crossval(svmMdl13, 'KFold', K); % Kは分割数
-loss = kfoldLoss(CVSVMModel13);
-meanAccuracy13 = 1-loss;
-
-disp(['Class 1: ', num2str(size(dataClass1, 1))]);
-disp(['Class 3: ', num2str(size(dataClass3, 1))]);
-disp(['Accuracy13', '：', num2str(meanAccuracy13 * 100), '%']);
-
-% データセットを保存
-save(datasetName13, 'eegData', 'preprocessedData', 'SVMDataSet13', 'SVMLabels13', 'cspFilters13', 'svmMdl13');
-disp(['データセットが ', datasetName13, ' として保存されました。']);
+save(datasetName, 'eegData', 'preprocessedData', 'SVMDataSet', 'SVMLabels', 'cspFilters', 'svmMdl', 'movieStart');
+disp(['データセットが ', datasetName, ' として保存されました。']);
 
 
 %% ボタン構成
