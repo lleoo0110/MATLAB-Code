@@ -36,7 +36,7 @@ end
 disp('Now receiving data...');
 
 %% パラメータ設定
-global isRunning Fs minf maxf nTrials Ch  filtOrder labelName csvFilename singleTrials portNumber markerData
+global isRunning Fs minf maxf nTrials Ch  filtOrder labelName csvFilename singleTrials portNumber
 minf = 1;
 maxf = 40;
 filtOrder = 1500;
@@ -46,14 +46,14 @@ overlap = 8;
 portNumber = 12354; % UDPポート番号
 
 % ラベル作成
-label = readmatrix('labels/-.csv');
+label = readmatrix('labels/eogTraining.csv');
 labelNum = size(label, 1);
 
 nTrials = movieTimes * labelNum * overlap;
 singleTrials = labelNum * overlap;
 
 % データセットの名前を指定
-name = 'takerun_eog'; % ここを変更
+name = 'test_eog'; % ここを変更
 datasetName = [name '_dataset'];
 dataName = name;
 csvFilename = [name '_label.csv'];
@@ -75,9 +75,9 @@ preprocessed_eogData = [];
 labels = [];
 
 % UDPソケットを作成
-udpSocket = udp('127.0.0.1', 'LocalPort', portNumber);
-% 受信データがある場合に処理を行う    
-fopen(udpSocket);
+% udpSocket = udp('127.0.0.1', 'LocalPort', portNumber);
+% % 受信データがある場合に処理を行う    
+% fopen(udpSocket);
 
 while ~isRunning
     % 待機時間
@@ -94,18 +94,18 @@ fileIndex = 1;
 lastSaveTime = tic;
 max_samples = 50;  % 最大チャンクサイズを50に設定
 while isRunning
-%     [vec, ts] = inlet.pull_sample(); % データの受信
-%     vec = vec(:); % 1x19の行ベクトルを19x1の列ベクトルに変換
-%     selectedData = vec(selectedChannels);
-    [chunk, stamps] = inlet.pull_chunk(0.1, max_samples);
-    chunk = chunk(:);
-    selectedData = chunk(selectedChannels);
+    [vec, ts] = inlet.pull_sample(); % データの受信
+    vec = vec(:); % 1x19の行ベクトルを19x1の列ベクトルに変換
+    selectedData = vec(selectedChannels);
+%     [chunk, stamps] = inlet.pull_chunk(max_samples);
+%     chunk = chunk(:);
+%     selectedData = chunk(selectedChannels);
     eogData = [eogData selectedData];
-    
-    dt = datetime('now','TimeZone','local','Format','d-MMM-y HH:mm:ss Z');
-    epocTimeNow = posixtime(dt);
-    markerValue = 1;
-    markerData = [epocTimeNow, markerValue, epocTimeNow];
+%     
+%     dt = datetime('now','TimeZone','local','Format','d-MMM-y HH:mm:ss Z');
+%     epocTimeNow = posixtime(dt);
+%     markerValue = 1;
+%     markerData = [epocTimeNow, markerValue, epocTimeNow];
     
     if udpSocket.BytesAvailable > 0
         % データを受信
@@ -162,12 +162,13 @@ end
 eogData = savedData; % EEGデータの保存
 
 % UDPソケットを閉じる
-fclose(udpSocket);
-delete(udpSocket);
-clear udpSocket;
+% fclose(udpSocket);
+% delete(udpSocket);
+% clear udpSocket;
 
 %% 取得した脳波データの前処理
 disp('データ解析中...しばらくお待ちください...');
+preprocessedeogData = preprocessData(eogData, Fs, filtOrder, minf, maxf);
 
 % ラベル作成
 labels = [];
@@ -199,7 +200,7 @@ for ii = 1:movieTimes
             % エポック
             tt = 0;
             for ll = 1:overlap
-                eogDataSet{singleTrials*(ii-1)+overlap*(jj-1)+ll, 1}(kk,:) = eogData(kk,startIdx+round(tt*Fs):endIdx+round(tt*Fs)); % tt秒後のデータ
+                eogDataSet{singleTrials*(ii-1)+overlap*(jj-1)+ll, 1}(kk,:) = preprocessedeogData (kk,startIdx+round(tt*Fs):endIdx+round(tt*Fs)); % tt秒後のデータ
                 tt = tt + 0.5;
             end
         end
@@ -228,24 +229,24 @@ labelClass2 = repmat(2, size(eogDataClass2, 1), 1);
 labelClass3 = repmat(3, size(eogDataClass3, 1), 1);
 
 
-%% 脳波データ解析  真ん中 vs 右
+%% 脳波データ解析
 % 特徴抽出
-features1 = eogAnalysis(eogDataClass1, Fs, filtOrder, minf, maxf);
-features2 = eogAnalysis(eogDataClass2, Fs, filtOrder, minf, maxf);
-features3 = eogAnalysis(eogDataClass3, Fs, filtOrder, minf, maxf);
+features1 = eogAnalysis(eogDataClass1, Fs);
+features2 = eogAnalysis(eogDataClass2, Fs);
+features3 = eogAnalysis(eogDataClass3, Fs);
 
-% SVRデータセット
-egoFeutures = [features1; features2; features3];
+% EOGデータセット
+eogFeatures = [features1; features2; features3];
 eogLabels = [labelClass1; labelClass2; labelClass3];
 
 % 分類精度算出
-[eogMdl, loss] = EOGCrossValidation(eogFeutures, eogLabels, K);
+[eogMdl, loss] = EOGCrossValidation(eogFeatures, eogLabels, K);
 meanAccuracy = 1-loss;
 
 disp(['Accuracy', '：', num2str(meanAccuracy * 100), '%']);
 
 % データセットを保存
-save(datasetName, 'eegData', 'preprocessedData', 'SVMDataSet', 'SVMLabels', 'cspFilters', 'svmMdl', 'movieStart');
+save(datasetName, 'eogData', 'preprocessedeogData', 'eogFeatures', 'eogLabels','eogMdl', 'movieStart');
 disp(['データセットが ', datasetName, ' として保存されました。']);
 
 
@@ -310,8 +311,8 @@ function labelButtonCallback(hObject, eventdata)
     csv_file = fopen(csvFilename, 'a'); % ファイルを追記モードで再度開く
     
     % マーカー送信
-    outlet.push_sample(markerData);
-    disp('Send marker has value: ');
+%     outlet.push_sample(markerData);
+%     disp('Send marker has value: ');
 end
 
 % タイマー呼び出し中処理

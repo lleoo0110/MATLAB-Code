@@ -53,7 +53,7 @@ nTrials = movieTimes * labelNum * overlap;
 singleTrials = labelNum * overlap;
 
 % データセットの名前を指定
-name = 'takerun_MI'; % ここを変更
+name = 'motty_MI'; % ここを変更
 datasetName = [name '_dataset'];
 dataName = name;
 csvFilename = [name '_label.csv'];
@@ -100,17 +100,17 @@ fileIndex = 1;
 lastSaveTime = tic;
 max_samples = 50;  % 最大チャンクサイズを50に設定
 while isRunning
-%     [vec, ts] = inlet.pull_sample(); % データの受信
-%     vec = vec(:); % 1x19の行ベクトルを19x1の列ベクトルに変換
-%     selectedData = vec(selectedChannels);
-    [chunk, stamps] = inlet.pull_chunk(0.1, max_samples);
-    chunk = chunk(:);
-    selectedData = chunk(selectedChannels);
+    [vec, ts] = inlet.pull_sample(); % データの受信
+    vec = vec(:); % 1x19の行ベクトルを19x1の列ベクトルに変換
+    selectedData = vec(selectedChannels);
+%     [chunk, stamps] = inlet.pull_chunk(0.1, max_samples);
+%     chunk = chunk(:);
+%     selectedData = chunk(selectedChannels);
     eegData = [eegData selectedData];
-    dt = datetime('now','TimeZone','local','Format','d-MMM-y HH:mm:ss Z');
-    epocTimeNow = posixtime(dt);
-    markerValue = 1;
-    markerData = [epocTimeNow, markerValue, epocTimeNow];
+%     dt = datetime('now','TimeZone','local','Format','d-MMM-y HH:mm:ss Z');
+%     epocTimeNow = posixtime(dt);
+%     markerValue = 1;
+%     markerData = [epocTimeNow, markerValue, epocTimeNow];
     
     if udpSocket.BytesAvailable > 0
         % データを受信
@@ -341,8 +341,8 @@ function labelButtonCallback(hObject, eventdata)
     csv_file = fopen(csvFilename, 'a'); % ファイルを追記モードで再度開く
     
     % マーカー送信
-    outlet.push_sample(markerData);
-    disp('Send marker has value: ');
+%     outlet.push_sample(markerData);
+%     disp('Send marker has value: ');
 end
 
 % タイマー呼び出し中処理

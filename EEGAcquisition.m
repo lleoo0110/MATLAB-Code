@@ -45,7 +45,7 @@ movieTimes = 2;
 overlap = 4;
 
 % データセットの名前を指定
-name = 'colors_sui-sui'; % ここを変更
+name = 'yabuchan4'; % ここを変更
 datasetName = [name '_dataset'];
 dataName = name;
 csvFilename = [name '_label.csv'];
