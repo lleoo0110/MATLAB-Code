@@ -1,0 +1,23 @@
+function [cv_model, cv_mse] = svrCrossValidation(features, labels, num_folds)
+    % SVRモデルの交差検証を行う関数
+    
+    % SVRモデルのパラメータ設定
+    epsilon = 0.1;
+    kernel_function = 'rbf';  % ガウシアンカーネル
+    kernel_scale = 'auto';
+    standardize = true;
+    
+    % SVRモデルの定義
+    svr_template = templateSVM('KernelFunction', kernel_function, ...
+        'KernelScale', kernel_scale, ...
+        'Epsilon', epsilon, ...
+        'Standardize', standardize);
+    
+    % 交差検証モデルの作成
+    cv_model = fitrensemble(features, labels, 'Learners', svr_template, ...
+        'CrossVal', 'on', ...
+        'KFold', num_folds);
+    
+    % 交差検証による平均二乗誤差の計算
+    cv_mse = kfoldLoss(cv_model);
+end

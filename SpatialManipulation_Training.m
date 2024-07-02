@@ -38,11 +38,11 @@ disp('Now receiving data...');
 %% パラメータ設定
 global isRunning Fs minf maxf nTrials Ch numFilter filtOrder labelName csvFilename singleTrials  t csv_file
 minf = 1;
-maxf = 40;
+maxf = 30;
 filtOrder = 1500;
 isRunning = false;
 movieTimes = 4;
-overlap = 4;
+overlap = 8;
 portNumber = 12354; % UDPポート番号
 
 % ラベル作成
@@ -70,8 +70,8 @@ boxConstraint = [0.1, 1, 10, 100];
 Fs = 256;
 Ch = {'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'}; % チャンネル
 selectedChannels = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
-numFilter = 7;
-K = 10;
+numFilter = 4;
+K = 5;
 
 
 %% 脳波データ計測
@@ -200,13 +200,13 @@ for ii = 1:movieTimes
         for kk = 1:length(Ch)
             % 2秒間のデータを抽出
             startIdx = round(Fs*((st+10)+15*(jj-1))) + 1;
-            endIdx = startIdx + Fs*2 - 1;
+            endIdx = startIdx + Fs*1 - 1;
 
             % エポック
             tt = 0;
             for ll = 1:overlap
                 DataSet{singleTrials*(ii-1)+overlap*(jj-1)+ll, 1}(kk,:) = preprocessedData(kk,startIdx+round(tt*Fs):endIdx+round(tt*Fs)); % tt秒後のデータ
-                tt = tt + 1;
+                tt = tt + 0.5;
             end
         end
     end
@@ -263,11 +263,11 @@ y23 = SVMLabels23;
 % classOrder23 = svmProbModel23.ClassNames;
 
 % 修正後モデル
-% t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
+t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
 
 % オフライン解析時にこちらのモデルを使う
-[bestAccuracy, bestParams] = optimizeGridSearch(X23, y23, kernelFunctions, kernelScale, boxConstraint, K);
-t = templateSVM('KernelFunction', bestParams.kernelFunction(1), 'KernelScale', bestParams.kernelScale, 'BoxConstraint', bestParams.boxConstraint);
+% [bestAccuracy, bestParams] = optimizeGridSearch(X23, y23, kernelFunctions, kernelScale, boxConstraint, K);
+% t = templateSVM('KernelFunction', bestParams.kernelFunction(1), 'KernelScale', bestParams.kernelScale, 'BoxConstraint', bestParams.boxConstraint);
 
 svmMdl23 = fitcecoc(X23, y23, 'Learners', t);
 
@@ -281,7 +281,7 @@ disp(['Class 3: ', num2str(size(dataClass3, 1))]);
 disp(['Accuracy23', '：', num2str(meanAccuracy23 * 100), '%']);
 
 % データセットを保存
-save(datasetName23, 'eegData', 'preprocessedData', 'SVMDataSet23', 'SVMLabels23', 'cspFilters23', 'svmMdl23');
+save(datasetName23, 'eegData', 'preprocessedData', 'SVMDataSet23', 'SVMLabels23', 'cspFilters23', 'svmMdl23', 'movieStart');
 disp(['データセットが ', datasetName23, ' として保存されました。']);
 
 
@@ -327,7 +327,7 @@ disp(['Class 2: ', num2str(size(dataClass2, 1))]);
 disp(['Accuracy12', '：', num2str(meanAccuracy12 * 100), '%']);
 
 % データセットを保存
-save(datasetName12, 'eegData', 'preprocessedData', 'SVMDataSet12', 'SVMLabels12', 'cspFilters12', 'svmMdl12');
+save(datasetName12, 'eegData', 'preprocessedData', 'SVMDataSet12', 'SVMLabels12', 'cspFilters12', 'svmMdl12', 'movieStart');
 disp(['データセットが ', datasetName12, ' として保存されました。']);
 
 
@@ -376,7 +376,7 @@ disp(['Class 3: ', num2str(size(dataClass3, 1))]);
 disp(['Accuracy13', '：', num2str(meanAccuracy13 * 100), '%']);
 
 % データセットを保存
-save(datasetName13, 'eegData', 'preprocessedData', 'SVMDataSet13', 'SVMLabels13', 'cspFilters13', 'svmMdl13');
+save(datasetName13, 'eegData', 'preprocessedData', 'SVMDataSet13', 'SVMLabels13', 'cspFilters13', 'svmMdl13', 'movieStart');
 disp(['データセットが ', datasetName13, ' として保存されました。']);
 
 

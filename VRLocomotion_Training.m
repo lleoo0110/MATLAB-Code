@@ -246,25 +246,19 @@ X = SVMDataSet;
 y = SVMLabels;
 
 % SVMモデル
-svmMdl = fitcsvm(X, y, 'OptimizeHyperparameters', 'auto', 'Standardize', true, 'ClassNames', [1,2]);
+svmMdl = fitcsvm(X, y, 'Standardize', true, 'ClassNames', [1,2]); %デフォルト
+% svmMdl = fitcsvm(X, y, 'OptimizeHyperparameters', 'auto', 'Standardize', true, 'ClassNames', [1,2]);
+svmProbModel = fitPosterior(svmMdl); % 確率出力を可能にするモデルに変換
+[preLabel, preScores] = predict(svmProbModel, X); % 新しいデータに対する予測
+classOrder = svmProbModel.ClassNames; % モデルのクラス順序を確認
 
-% 確率出力を可能にするモデルに変換
-svmProbModel = fitPosterior(svmMdl);
-
-% 新しいデータに対する予測
-[preLabel, preScores] = predict(svmProbModel, X);
-
-% モデルのクラス順序を確認
-classOrder = svmProbModel.ClassNames;
-
-% 修正後モデル
+% fitecocモデル
 % t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
+% [bestAccuracy, bestParams] = optimizeGridSearch(X, y, kernelFunctions, kernelScale, boxConstraint, K); % グリッドサーチ
 
-% オフライン解析時にこちらのモデルを使う
-% [bestAccuracy, bestParams] = optimizeGridSearch(X, y, kernelFunctions, kernelScale, boxConstraint, K);
 % t = templateSVM('KernelFunction', bestParams.kernelFunction(1), 'KernelScale', bestParams.kernelScale, 'BoxConstraint', bestParams.boxConstraint);
-
 % svmMdl = fitcecoc(X, y, 'Learners', t);
+
 
 % クロスバリデーションによる平均分類誤差の計算
 CVSVMModel = crossval(svmMdl, 'KFold', K); % Kは分割数

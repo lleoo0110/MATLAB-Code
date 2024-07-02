@@ -1,45 +1,57 @@
-function meanAccuracy = blockCrossvalidation(Data, label, numBlocks)
-
-% ラベルをカテゴリカル型に変換
-label = categorical(label);
-
-% データの準備
-X = Data;
-y = label; % ラベルまたはクラス
-
-
-% SVMのテンプレートの作成
-t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
-
-% データセットのブロック数を定義
-blockSize = floor(size(X, 1) / numBlocks);
-
-% ブロッククロスバリデーションの結果を保存するための変数
-accuracy = zeros(numBlocks, 1);
-
-for i = 1:numBlocks
-    % ブロックを定義
-    startIndex = (i-1) * blockSize + 1;
-    endIndex = i * blockSize;
-    if i == numBlocks
-        endIndex = size(X, 1); % 最後のブロックでデータセットの終わりまで含める
+function [meanAccuracy, stdAccuracy, accuracies, confMat, f1Score] = blockCrossvalidation(Data, label, numBlocks, classifierFun)
+    % Input validation
+    if ~isequal(size(Data, 1), length(label))
+        error('Number of samples in Data and label must match.');
     end
     
-    % テストセットとトレーニングセットを分割
-    X_test = X(startIndex:endIndex, :);
-    y_test = y(startIndex:endIndex, :);
-    X_train = X([1:startIndex-1, endIndex+1:end], :);
-    y_train = y([1:startIndex-1, endIndex+1:end], :);
+    if nargin < 4
+        classifierFun = @(X, y) fitcsvm(X, y, 'Standardize', true);
+    end
+
+    label = categorical(label);
+    X = Data;
+    y = label; 
+
+    blockSize = floor(size(X, 1) / numBlocks);
+
+    accuracies = zeros(numBlocks, 1);
+    confMat = zeros(length(categories(y)));
     
-    % モデルの訓練
-    Mdl = fitcecoc(X_train, y_train, 'Learners', t);
+    for i = 1:numBlocks
+        startIndex = (i-1) * blockSize + 1;
+        endIndex = min(i * blockSize, size(X, 1));
+
+        testIdx = startIndex:endIndex;
+        trainIdx = setdiff(1:size(X,1), testIdx);
+
+        X_test = X(testIdx, :);
+        y_test = y(testIdx);
+        X_train = X(trainIdx, :);
+        y_train = y(trainIdx);
+
+        % Train the classifier
+        model = classifierFun(X_train, y_train);
+
+        % Predict and evaluate
+        predictions = predict(model, X_test);
+        accuracies(i) = sum(predictions == y_test) / length(y_test);
+        
+        confMat = confMat + confusionmat(y_test, predictions);
+    end
+
+    % Calculate mean accuracy and standard deviation
+    meanAccuracy = mean(accuracies);
+    stdAccuracy = std(accuracies);
     
-    % テストセットでの評価
-    predictions = predict(Mdl, X_test);
-    accuracy(i) = sum(predictions == y_test) / length(y_test);
+    % Calculate overall F1 score
+    f1Score = calculateF1Score(confMat);
 end
 
-% 全ブロックでの平均精度を計算
-meanAccuracy = mean(accuracy);
-
+function f1 = calculateF1Score(confMat)
+    precision = diag(confMat) ./ sum(confMat, 1)';
+    recall = diag(confMat) ./ sum(confMat, 2);
+    
+    f1 = 2 * (precision .* recall) ./ (precision + recall);
+    f1(isnan(f1)) = 0;  % Handle division by zero
+    f1 = mean(f1);
 end
