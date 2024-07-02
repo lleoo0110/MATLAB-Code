@@ -380,6 +380,7 @@ save(datasetName13, 'eegData', 'preprocessedData', 'SVMDataSet13', 'SVMLabels13'
 disp(['データセットが ', datasetName13, ' として保存されました。']);
 
 
+
 %% ボタン構成
 function createMovieStartGUI()
     global t csv_file label_name startButton stopButton labelButton csvFilename; % グローバル変数の宣言

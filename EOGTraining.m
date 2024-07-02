@@ -36,39 +36,33 @@ end
 disp('Now receiving data...');
 
 %% パラメータ設定
-global isRunning Fs minf maxf nTrials Ch numFilter filtOrder labelName csvFilename singleTrials  portNumber markerData
+global isRunning Fs minf maxf nTrials Ch  filtOrder labelName csvFilename singleTrials portNumber markerData
 minf = 1;
 maxf = 40;
 filtOrder = 1500;
 isRunning = false;
-movieTimes = 4;
-overlap = 4;
+movieTimes = 1;
+overlap = 8;
 portNumber = 12354; % UDPポート番号
 
 % ラベル作成
-label = readmatrix('labels/VRLocomotion_Training.csv');
+label = readmatrix('labels/-.csv');
 labelNum = size(label, 1);
 
 nTrials = movieTimes * labelNum * overlap;
 singleTrials = labelNum * overlap;
 
 % データセットの名前を指定
-name = 'takerun_MI'; % ここを変更
+name = 'takerun_eog'; % ここを変更
 datasetName = [name '_dataset'];
 dataName = name;
 csvFilename = [name '_label.csv'];
 labelName = 'stimulus';
 
-% グリッドリサーチ パラメータの範囲を定義
-% kernelFunctions = {'linear', 'rbf', 'polynomial'};
-% kernelScale = [0.1, 1, 10];
-% boxConstraint = [0.1, 1, 10, 100];
-
 % EPOC X
 Fs = 256;
-Ch = {'AF3','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4'}; % チャンネル
-selectedChannels = [4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17]; % 'AF3','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4'
-numFilter =6;
+Ch = {'F7','F8'}; % チャンネル
+selectedChannels = [5, 16]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
 K = 10;
 
 
@@ -76,8 +70,8 @@ K = 10;
 % GUIの作成と表示
 createMovieStartGUI();
 
-eegData = [];
-preprocessedData = [];
+eogData = [];
+preprocessed_eogData = [];
 labels = [];
 
 % UDPソケットを作成
@@ -106,7 +100,8 @@ while isRunning
     [chunk, stamps] = inlet.pull_chunk(0.1, max_samples);
     chunk = chunk(:);
     selectedData = chunk(selectedChannels);
-    eegData = [eegData selectedData];
+    eogData = [eogData selectedData];
+    
     dt = datetime('now','TimeZone','local','Format','d-MMM-y HH:mm:ss Z');
     epocTimeNow = posixtime(dt);
     markerValue = 1;
@@ -137,8 +132,8 @@ while isRunning
     if elapsedTime >= saveInterval
         disp('60秒保存');
         % データをファイルに保存
-        save(sprintf('%s_data_%d.mat', dataName, fileIndex), 'eegData');
-        eegData = []; % メモリから削除
+        save(sprintf('%s_data_%d.mat', dataName, fileIndex), 'eogData');
+        eogData = []; % メモリから削除
         lastSaveTime = tic;
         fileIndex = fileIndex + 1; % 連番を増加
     end
@@ -147,9 +142,9 @@ while isRunning
 end
 
 % 最後の未保存データを保存
-if ~isempty(eegData)
+if ~isempty(eogData)
     elapsedTime = toc(lastSaveTime);
-    save(sprintf('%s_data_%d.mat', dataName, fileIndex), 'eegData');
+    save(sprintf('%s_data_%d.mat', dataName, fileIndex), 'eogData');
 end
 
 savedData = [];
@@ -157,14 +152,14 @@ fileIndex = 1;
 while true
     filename = sprintf('%s_data_%d.mat', dataName, fileIndex);
     if exist(filename, 'file')
-        load(filename, 'eegData');
-        savedData = [savedData eegData];
+        load(filename, 'eogData');
+        savedData = [savedData eogData];
         fileIndex = fileIndex + 1;
     else
         break;
     end
 end
-eegData = savedData; % EEデータの保存
+eogData = savedData; % EEGデータの保存
 
 % UDPソケットを閉じる
 fclose(udpSocket);
@@ -173,9 +168,6 @@ clear udpSocket;
 
 %% 取得した脳波データの前処理
 disp('データ解析中...しばらくお待ちください...');
-
-% データの前処理
-preprocessedData = preprocessData(eegData, filtOrder, minf, maxf);
 
 % ラベル作成
 labels = [];
@@ -196,23 +188,19 @@ for ii = 1:movieTimes
         st = movieStart(1,2);
         case 2
         st = movieStart(2,2);
-        case 3
-        st = movieStart(3,2);
-        case 4
-        st = movieStart(4,2);
     end
     
     for jj = 1:labelNum
         for kk = 1:length(Ch)
             % 2秒間のデータを抽出
-            startIdx = round(Fs*((st+5)+10*(jj-1))) + 1;
-            endIdx = startIdx + Fs*2 - 1;
+            startIdx = round(Fs*(st+5*(jj-1))) + 1;
+            endIdx = startIdx + Fs*1 - 1;
 
             % エポック
             tt = 0;
             for ll = 1:overlap
-                DataSet{singleTrials*(ii-1)+overlap*(jj-1)+ll, 1}(kk,:) = preprocessedData(kk,startIdx+round(tt*Fs):endIdx+round(tt*Fs)); % tt秒後のデータ
-                tt = tt + 1;
+                eogDataSet{singleTrials*(ii-1)+overlap*(jj-1)+ll, 1}(kk,:) = eogData(kk,startIdx+round(tt*Fs):endIdx+round(tt*Fs)); % tt秒後のデータ
+                tt = tt + 0.5;
             end
         end
     end
@@ -228,51 +216,32 @@ labelData = cell(length(uniqueLabels), 1);
 
 % 各ラベルに対応するデータを抽出
 for i = 1:length(uniqueLabels)
-    labelData{i} = DataSet(labels == uniqueLabels(i), :);
+    labelData{i} = eogDataSet(labels == uniqueLabels(i), :);
 end
-dataClass1 = labelData{uniqueLabels == 1};
-dataClass2 = labelData{uniqueLabels == 2};
+eogDataClass1 = labelData{uniqueLabels == 1};
+eogDataClass2 = labelData{uniqueLabels == 2};
+eogDataClass3 = labelData{uniqueLabels == 3};
 
 % ラベルの配列を作成
-labelClass1 = repmat(1, size(dataClass1, 1), 1);
-labelClass2 = repmat(2, size(dataClass2, 1), 1);
+labelClass1 = repmat(1, size(eogDataClass1, 1), 1);
+labelClass2 = repmat(2, size(eogDataClass2, 1), 1);
+labelClass3 = repmat(3, size(eogDataClass3, 1), 1);
 
 
-%% 脳波データ解析
-% 安静 vs 歩行イメージ
-% CSPデータセット
-[cspClass1, cspClass2, cspFilters] = processCSPData2Class(dataClass1, dataClass2);
-SVMDataSet = [cspClass1; cspClass2];
-SVMLabels = [labelClass1; labelClass2];
+%% 脳波データ解析  真ん中 vs 右
+% 特徴抽出
+features1 = eogAnalysis(eogDataClass1, Fs, filtOrder, minf, maxf);
+features2 = eogAnalysis(eogDataClass2, Fs, filtOrder, minf, maxf);
+features3 = eogAnalysis(eogDataClass3, Fs, filtOrder, minf, maxf);
 
-% 分類精度計算
-meanAccuracy = zeros(1, 1);
-% データ
-X = SVMDataSet;
-y = SVMLabels;
+% SVRデータセット
+egoFeutures = [features1; features2; features3];
+eogLabels = [labelClass1; labelClass2; labelClass3];
 
-% SVMモデル
-svmMdl = fitcsvm(X, y, 'Standardize', true, 'ClassNames', [1,2]); %デフォルト
-% svmMdl = fitcsvm(X, y, 'OptimizeHyperparameters', 'auto', 'Standardize', true, 'ClassNames', [1,2]);
-svmProbModel = fitPosterior(svmMdl); % 確率出力を可能にするモデルに変換
-[preLabel, preScores] = predict(svmProbModel, X); % 新しいデータに対する予測
-classOrder = svmProbModel.ClassNames; % モデルのクラス順序を確認
-
-% fitecocモデル
-% t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
-% [bestAccuracy, bestParams] = optimizeGridSearch(X, y, kernelFunctions, kernelScale, boxConstraint, K); % グリッドサーチ
-
-% t = templateSVM('KernelFunction', bestParams.kernelFunction(1), 'KernelScale', bestParams.kernelScale, 'BoxConstraint', bestParams.boxConstraint);
-% svmMdl = fitcecoc(X, y, 'Learners', t);
-
-
-% クロスバリデーションによる平均分類誤差の計算
-CVSVMModel = crossval(svmMdl, 'KFold', K); % Kは分割数
-loss = kfoldLoss(CVSVMModel);
+% 分類精度算出
+[eogMdl, loss] = EOGCrossValidation(eogFeutures, eogLabels, K);
 meanAccuracy = 1-loss;
 
-disp(['Class 1: ', num2str(size(dataClass1, 1))]);
-disp(['Class 2: ', num2str(size(dataClass2, 1))]);
 disp(['Accuracy', '：', num2str(meanAccuracy * 100), '%']);
 
 % データセットを保存

@@ -58,12 +58,13 @@ global Fs minf maxf filtOrder numFilter isRunning
 minf = 1;
 maxf = 40;
 filtOrder = 1500;
+threshold = 0.4; % 閾値の設定
 
 % EPOC X
 Fs = 256;
-Ch = {'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'}; % チャンネル
-selectedChannels = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
-numFilter =7;
+Ch = {'AF3','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4'}; % チャンネル
+selectedChannels = [4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17]; % 'AF3','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4'
+numFilter =6;
 
 % MN8
 % Fs = 128;
@@ -94,13 +95,23 @@ while isRunning
     end
     
     
-    if size(dataBuffer, 2) >= samplesPerWindow        
+    if size(dataBuffer, 2) >= samplesPerWindow  
         preprocessedData = preprocessData(dataBuffer(:, 1:samplesPerWindow), filtOrder, minf, maxf); % データの前処理
         analysisData = preprocessedData(:, end-Fs*2+1:end);
-        
+                
         % 特徴量抽出
         features = extractCSPFeatures(analysisData, cspFilters);
         features = features';
+        
+        % SVMモデルから予想を出力
+        [preLabel, preScore] = predict(svmProbModel, features);
+        
+        % 閾値による決定
+        if preScore(positiveClassIndex) >= threshold
+            svmOutput = 1;  % 正のクラス（安静状態）
+        else
+            svmOutput = 2;  % 負のクラス（発話イメージ状態）
+        end
         
         % SVMモデルから予想を出力
         svm_output = predict(svmMdl, features);

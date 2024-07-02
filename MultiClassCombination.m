@@ -137,7 +137,7 @@ for ii = 1:movieTimes
     % 刺激開始時間
     switch ii
         case 1
-        st = movieStart(1,2);
+        st = movieStart(1,1);
         case 2
         st = movieStart(1,2);
     end
@@ -151,13 +151,34 @@ for ii = 1:movieTimes
             % データ数増加
             tt = 0;
             for ll = 1:overlap
-                dataClass{singleTrials*(ii-1)+overlap*(jj-1)+ll, 1}(kk,:) = preprocessedData(kk,startIdx+round(tt*Fs):endIdx+round(tt*Fs)); % tt秒後のデータ
-                tt = tt + 1.5;
+                DataSet{singleTrials*(ii-1)+overlap*(jj-1)+ll, 1}(kk,:) = preprocessedData(kk,startIdx+round(tt*Fs):endIdx+round(tt*Fs)); % tt秒後のデータ
+                tt = tt + 1;
             end
         end
     end
 end
 
+
+% ラベルの一覧を取得
+uniqueLabels = unique(labels);
+
+% 各ラベルに対応するデータを抽出して格納するためのセル配列
+labelData = cell(length(uniqueLabels), 1);
+
+% 各ラベルに対応するデータを抽出
+for i = 1:length(uniqueLabels)
+    labelData{i} = DataSet(labels == uniqueLabels(i), :);
+end
+dataClass1 = labelData{uniqueLabels == 1};
+dataClass2 = labelData{uniqueLabels == 2};
+dataClass3 = labelData{uniqueLabels == 3};
+%  ...
+
+% ラベルの配列を作成
+labelClass1 = repmat(1, size(dataClass1, 1), 1);
+labelClass2 = repmat(2, size(dataClass2, 1), 1);
+labelClass3 = repmat(3, size(dataClass3, 1), 1);
+% ...
 
 %% データ保存
 save(datasetName, 'eegData', 'preprocessedData ', 'dataClass', 'movieStart');
@@ -166,10 +187,10 @@ disp('データ解析完了しました');
 
 %% 脳波データ解析
 % 全組み合わせの分類精度算出
-accuracyMatrix = zeros(7, 7);
+accuracyMatrix = zeros(6, 6);
 % 全てのクラスの組み合わせについてループ
-for i = 1:11
-    for j = i+1:11
+for i = 1:6
+    for j = i+1:6
         % クラスデータとラベルを取得
         dataClassA = eval(['dataClass', num2str(i)]);
         dataClassB = eval(['dataClass', num2str(j)]);
@@ -185,18 +206,18 @@ for i = 1:11
         X = SVMDataSet;
         y = SVMLabels;
         
-%         t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
-%         svmMdl = fitcecoc(X, y, 'Learners', t);
+        t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
+        svmMdl = fitcecoc(X, y, 'Learners', t);
 %         [preLabel, preScores] = predict(svmProbModel, X);
 %         classOrder = svmProbModel.ClassNames;
-% 
-%         % 交差検証による精度評価
-%         CVSVMModel = crossval(svmMdl, 'KFold', K);
-%         loss = kfoldLoss(CVSVMModel);
-%         meanAccuracy = 1 - loss;
+
+        % 交差検証による精度評価
+        CVSVMModel = crossval(svmMdl, 'KFold', K);
+        loss = kfoldLoss(CVSVMModel);
+        meanAccuracy = 1 - loss;
 
         % ブロッククロスバリデーション
-        [meanAccuracy, stdAccuracy, accuracies, confMat, f1Score] = blockCrossvalidation(X, y, K);
+        % [meanAccuracy, stdAccuracy, accuracies, confMat, f1Score] = blockCrossvalidation(X, y, K);
         
         % 分類精度を行列に保存
         accuracyMatrix(i, j) = meanAccuracy;
