@@ -56,7 +56,7 @@ labelName = 'stimulus';
 
 % パラメータ設定
 params = struct();
-params.modelType = 'svm';
+params.modelType = 'svm'; % 'svm' or 'ecoc'
 params.useOptimization = false;
 params.kernelFunctions = {'linear', 'rbf', 'polynomial'};
 params.kernelScale = [0.1, 1, 10];
