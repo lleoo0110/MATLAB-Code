@@ -56,7 +56,7 @@ end
 disp('Now receiving data...');
 global Fs minf maxf filtOrder numFilter isRunning
 minf = 1;
-maxf = 40;
+maxf = 30;
 filtOrder = 1500;
 
 % EPOC X
@@ -111,9 +111,6 @@ while isRunning
         svm_output23 = predict(svmMdl23, features23);
         svm_output13 = predict(svmMdl13, features13);
         
-        %disp(svm_output12);
-        %disp(svm_output23);
-        %disp(svm_output13);
         
         % 出力
         if svm_output23 == 2

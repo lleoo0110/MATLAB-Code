@@ -137,9 +137,9 @@ for ii = 1:movieTimes
     % 刺激開始時間
     switch ii
         case 1
-        st = movieStart(1,1);
-        case 2
         st = movieStart(1,2);
+        case 2
+        st = movieStart(2,2);
     end
     
     for jj = 1:labelNum

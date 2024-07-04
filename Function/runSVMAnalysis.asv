@@ -1,0 +1,40 @@
+function runSVMAnalysis(X, y, params, K, modelType, useOptimization)
+    % modelType: 'svm' または 'ecoc'
+    % useOptimization: true または false
+
+    if strcmp(modelType, 'svm')
+        % SVMモデル
+        if ~useOptimization
+            svmMdl = fitcsvm(X, y, 'Standardize', true, 'ClassNames', [1,2]);
+        else
+            svmMdl = fitcsvm(X, y, 'OptimizeHyperparameters', 'auto', 'Standardize', true, 'ClassNames', [1,2]);
+        end
+        
+
+    elseif strcmp(modelType, 'ecoc')
+        % ECOCモデル
+        if ~useOptimization
+            t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
+        else
+            % グリッドサーチによる最適化
+            [~, bestParams] = optimizeGridSearch(X, y, params.kernelFunctions, prams.kernelScale, params.boxConstraint, K);
+            t = templateSVM('KernelFunction', bestParams.kernelFunction(1), 'KernelScale', bestParams.kernelScale, 'BoxConstraint', bestParams.boxConstraint);
+        end
+
+        svmMdl = fitcecoc(X, y, 'Learners', t);
+    else
+        error('Invalid model type. Choose either "svm" or "ecoc".');
+    end
+
+    % 交差検証
+    CVSVMModel = crossval(svmMdl, 'KFold', K); 
+    loss = kfoldLoss(CVSVMModel);
+    meanAccuracy = 1 - loss;
+
+    % 結果の表示
+    disp(['Model Type: ', modelType]);
+    disp(['Optimization: ', num2str(useOptimization)]);
+    disp(['Class 1: ', num2str(sum(y == 1))]);
+    disp(['Class 2: ', num2str(sum(y == 2))]);
+    disp(['Accuracy23: ', num2str(meanAccuracy23 * 100), '%']);
+end
