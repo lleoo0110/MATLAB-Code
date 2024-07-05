@@ -43,7 +43,7 @@ filtOrder = 1500;
 isRunning = false;
 movieTimes = 4;
 overlap = 4;
-portNumber = 12354; % UDPポート番号
+portNumber = 12345; % UDPポート番号
 
 % ラベル作成
 label = readmatrix('labels/VRLocomotion_Training.csv');
@@ -53,7 +53,7 @@ nTrials = movieTimes * labelNum * overlap;
 singleTrials = labelNum * overlap;
 
 % データセットの名前を指定
-name = 'iida_MI'; % ここを変更
+name = 'inooooue_MI'; % ここを変更
 datasetName = [name '_dataset'];
 dataName = name;
 csvFilename = [name '_label.csv'];
@@ -68,7 +68,7 @@ labelName = 'stimulus';
 Fs = 256;
 Ch = {'AF3','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4'}; % チャンネル
 selectedChannels = [4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17]; % 'AF3','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4'
-numFilter =5;
+numFilter =6;
 K = 10;
 
 
@@ -168,7 +168,7 @@ clear udpSocket;
 disp('データ解析中...しばらくお待ちください...');
 
 % データの前処理
-preprocessedData = preprocessData(eegData, filtOrder, minf, maxf);
+preprocessedData = preprocessData(eegData, Fs, filtOrder, minf, maxf);
 
 % ラベル作成
 labels = [];

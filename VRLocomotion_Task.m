@@ -96,7 +96,7 @@ while isRunning
     
     
     if size(dataBuffer, 2) >= samplesPerWindow  
-        preprocessedData = preprocessData(dataBuffer(:, 1:samplesPerWindow), filtOrder, minf, maxf); % データの前処理
+        preprocessedData = preprocessData(dataBuffer(:, 1:samplesPerWindow),Fs, filtOrder, minf, maxf); % データの前処理
         analysisData = preprocessedData(:, end-Fs*2+1:end);
                 
         % 特徴量抽出
@@ -107,11 +107,11 @@ while isRunning
         [preLabel, preScore] = predict(svmProbModel, features);
         
         % 閾値による決定
-        if preScore(positiveClassIndex) >= threshold
-            svmOutput = 1;  % 正のクラス（安静状態）
-        else
-            svmOutput = 2;  % 負のクラス（発話イメージ状態）
-        end
+%         if preScore(positiveClassIndex) >= threshold
+%             svmOutput = 1;  % 正のクラス（安静状態）
+%         else
+%             svmOutput = 2;  % 負のクラス（発話イメージ状態）
+%         end
         
         % SVMモデルから予想を出力
         svm_output = predict(svmMdl, features);

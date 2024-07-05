@@ -46,7 +46,7 @@ overlap = 4;
 portNumber = 12354; % UDPポート番号
 
 % データセットの名前を指定
-name = 'name'; % ここを変更
+name = 'test_lake_MMI0704'; % ここを変更
 datasetName12 = [name '_dataset12'];
 datasetName23 = [name '_dataset23'];
 datasetName13 = [name '_dataset13'];
@@ -56,8 +56,8 @@ labelName = 'stimulus';
 
 % パラメータ設定
 params = struct();
-params.modelType = 'svm'; % 'svm' or 'ecoc'
-params.useOptimization = false;
+params.modelType = 'ecoc'; % 'svm' or 'ecoc'
+params.useOptimization = true;
 params.kernelFunctions = {'linear', 'rbf', 'polynomial'};
 params.kernelScale = [0.1, 1, 10];
 params.boxConstraint = [0.1, 1, 10, 100];

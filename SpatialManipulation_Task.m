@@ -95,7 +95,7 @@ while isRunning
     
     
     if size(dataBuffer, 2) >= samplesPerWindow        
-        preprocessedData = preprocessData(dataBuffer(:, 1:samplesPerWindow), filtOrder, minf, maxf); % データの前処理
+        preprocessedData = preprocessData(dataBuffer(:, 1:samplesPerWindow), Fs, filtOrder, minf, maxf); % データの前処理
         analysisData = preprocessedData(:, end-Fs*2+1:end);
         
         % 特徴量抽出
