@@ -54,10 +54,11 @@ end
 
 % データ受信と処理
 disp('Now receiving data...');
-global Fs minf maxf filtOrder numFilter isRunning
+global Fs minf maxf filtOrder numFilter isRunning portNumber
 minf = 1;
 maxf = 30;
 filtOrder = 1500;
+portNumber = 12354; % UDPポート番号
 
 % EPOC X
 Fs = 256;
@@ -95,7 +96,7 @@ while isRunning
     
     
     if size(dataBuffer, 2) >= samplesPerWindow        
-        preprocessedData = preprocessData(dataBuffer(:, 1:samplesPerWindow), Fs, filtOrder, minf, maxf); % データの前処理
+        preprocessedData = preprocessData(dataBuffer(:, 1:samplesPerWindow), Fs, sfiltOrder, minf, maxf); % データの前処理
         analysisData = preprocessedData(:, end-Fs*2+1:end);
         
         % 特徴量抽出
@@ -110,7 +111,6 @@ while isRunning
         svm_output12 = predict(svmMdl12, features12);
         svm_output23 = predict(svmMdl23, features23);
         svm_output13 = predict(svmMdl13, features13);
-        
         
         % 出力
         if svm_output23 == 2

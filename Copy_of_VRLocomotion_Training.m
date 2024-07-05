@@ -32,60 +32,53 @@ for k = 1:inf.channel_count()
 end
 
 
+%% データ受信と処理
+disp('Now receiving data...');
+
 %% パラメータ設定
-global isRunning Fs minf maxf nTrials Ch numFilter filtOrder labelName csvFilename singleTrials
+global isRunning Fs minf maxf nTrials Ch numFilter filtOrder labelName csvFilename singleTrials  portNumber markerData
 minf = 1;
-maxf = 30;
+maxf = 0;
 filtOrder = 1500;
 isRunning = false;
 movieTimes = 4;
 overlap = 4;
 portNumber = 12354; % UDPポート番号
 
+% ラベル作成
+label = readmatrix('labels/VRLocomotion_Training.csv');
+labelNum = size(label, 1);
+
+nTrials = movieTimes * labelNum * overlap;
+singleTrials = labelNum * overlap;
+
 % データセットの名前を指定
-name = 'test_lake_MMI0704'; % ここを変更
-datasetName12 = [name '_dataset12'];
-datasetName23 = [name '_dataset23'];
-datasetName13 = [name '_dataset13'];
+name = 'iida_MI'; % ここを変更
+datasetName = [name '_dataset'];
 dataName = name;
 csvFilename = [name '_label.csv'];
 labelName = 'stimulus';
 
-% パラメータ設定
-params = struct();
-params.modelType = 'ecoc'; % 'svm' or 'ecoc'
-params.useOptimization = true;
-params.kernelFunctions = {'linear', 'rbf', 'polynomial'};
-params.kernelScale = [0.1, 1, 10];
-params.boxConstraint = [0.1, 1, 10, 100];
+% グリッドリサーチ パラメータの範囲を定義
+% kernelFunctions = {'linear', 'rbf', 'polynomial'};
+% kernelScale = [0.1, 1, 10];
+% boxConstraint = [0.1, 1, 10, 100];
 
 % EPOC X
 Fs = 256;
-Ch = {'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'}; % チャンネル
-selectedChannels = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
-numFilter = 7;
+Ch = {'AF3','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4'}; % チャンネル
+selectedChannels = [4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17]; % 'AF3','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4'
+numFilter =5;
 K = 10;
-
-% ラベル作成
-label = readmatrix('labels/SpatialAudio_Training.csv');
-labelNum = size(label, 1);
-
-% データ数
-nTrials = movieTimes * labelNum * overlap;
-singleTrials = labelNum * overlap;
 
 
 %% 脳波データ計測
-disp('データ計測中...');
-
 % GUIの作成と表示
 createMovieStartGUI();
 
-% データ初期化
 eegData = [];
 preprocessedData = [];
 labels = [];
-movieStart = [];
 
 % UDPソケットを作成
 udpSocket = udp('127.0.0.1', 'LocalPort', portNumber);
@@ -105,6 +98,7 @@ end
 saveInterval = 60; % 保存間隔（秒）
 fileIndex = 1;
 lastSaveTime = tic;
+max_samples = 50;  % 最大チャンクサイズを50に設定
 while isRunning
     [vec, ts] = inlet.pull_sample(); % データの受信
     vec = vec(:); % 1x19の行ベクトルを19x1の列ベクトルに変換
@@ -157,13 +151,7 @@ while true
         break;
     end
 end
-eegData = savedData; % EEGデータの保存
-
-% データセットを保存
-save(datasetName23, 'eegData');
-save(datasetName12, 'eegData');
-save(datasetName13, 'eegData');
-disp(['データセットが保存されました。']);
+eegData = savedData; % EEデータの保存
 
 % UDPソケットを閉じる
 fclose(udpSocket);
@@ -174,7 +162,7 @@ clear udpSocket;
 disp('データ解析中...しばらくお待ちください...');
 
 % データの前処理
-preprocessedData = preprocessData(eegData, Fs, filtOrder, minf, maxf);
+preprocessedData = preprocessData(eegData, filtOrder, minf, maxf);
 
 % ラベル作成
 labels = [];
@@ -187,27 +175,24 @@ labels = repmat(labels, movieTimes, 1);
 
 
 % エポック化
-% セクションで実行した時は，保存していたmovieStart使うようにするため
-if ~exist('movieStart', 'var') || isempty(movieStart)
-    movieStart = readmatrix(csvFilename);
-end
+movieStart = readmatrix(csvFilename);
 for ii = 1:movieTimes
     % 刺激開始時間
     switch ii
         case 1
-            st = movieStart(1,2);
+        st = movieStart(1,2);
         case 2
-            st = movieStart(2,2);
+        st = movieStart(2,2);
         case 3
-            st = movieStart(3,2);
+        st = movieStart(3,2);
         case 4
-            st = movieStart(4,2);
+        st = movieStart(4,2);
     end
     
     for jj = 1:labelNum
         for kk = 1:length(Ch)
             % 2秒間のデータを抽出
-            startIdx = round(Fs*((st+10)+15*(jj-1))) + 1;
+            startIdx = round(Fs*((st+5)+10*(jj-1))) + 1;
             endIdx = startIdx + Fs*2 - 1;
 
             % エポック
@@ -234,65 +219,52 @@ for i = 1:length(uniqueLabels)
 end
 dataClass1 = labelData{uniqueLabels == 1};
 dataClass2 = labelData{uniqueLabels == 2};
-dataClass3 = labelData{uniqueLabels == 3};
 
 % ラベルの配列を作成
 labelClass1 = repmat(1, size(dataClass1, 1), 1);
 labelClass2 = repmat(2, size(dataClass2, 1), 1);
-labelClass3 = repmat(3, size(dataClass3, 1), 1);
-
-% データセットを保存
-save(datasetName23, 'eegData', 'preprocessedData', 'movieStart');
-save(datasetName12, 'eegData', 'preprocessedData', 'movieStart');
-save(datasetName13, 'eegData', 'preprocessedData', 'movieStart');
-disp(['データセットが更新されました。']);
-
 
 
 %% 脳波データ解析
-disp('機械学習解析中...しばらくお待ちください...');
+% 安静 vs 歩行イメージ
+% CSPデータセット
+[cspClass1, cspClass2, cspFilters] = processCSPData2Class(dataClass1, dataClass2);
+SVMDataSet = [cspClass1; cspClass2];
+SVMLabels = [labelClass1; labelClass2];
+
+% 分類精度計算
+meanAccuracy = zeros(1, 1);
+% データ
+X = SVMDataSet;
+y = SVMLabels;
+
+% SVMモデル
+svmMdl = fitcsvm(X, y, 'Standardize', true, 'ClassNames', [1,2]); %デフォルト
+% svmMdl = fitcsvm(X, y, 'OptimizeHyperparameters', 'auto', 'Standardize', true, 'ClassNames', [1,2]);
+svmProbModel = fitPosterior(svmMdl); % 確率出力を可能にするモデルに変換
+[preLabel, preScores] = predict(svmProbModel, X); % 新しいデータに対する予測
+classOrder = svmProbModel.ClassNames; % モデルのクラス順序を確認
+
+% fitecocモデル
+% t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
+% [bestAccuracy, bestParams] = optimizeGridSearch(X, y, kernelFunctions, kernelScale, boxConstraint, K); % グリッドサーチ
+
+% t = templateSVM('KernelFunction', bestParams.kernelFunction(1), 'KernelScale', bestParams.kernelScale, 'BoxConstraint', bestParams.boxConstraint);
+% svmMdl = fitcecoc(X, y, 'Learners', t);
 
 
-%% CSPデータセット作成
-% オブジェクト前方移動(2) VS オブジェクト後方移動(3)
-[cspClass2, cspClass3, cspFilters23] = processCSPData2Class(dataClass2, dataClass3);
-SVMDataSet23 = [cspClass2; cspClass3];
-SVMLabels23 = [labelClass2; labelClass3];
+% クロスバリデーションによる平均分類誤差の計算
+CVSVMModel = crossval(svmMdl, 'KFold', K); % Kは分割数
+loss = kfoldLoss(CVSVMModel);
+meanAccuracy = 1-loss;
 
-% 安静(1) VS オブジェクト前方移動(2)
-[cspClass1, cspClass2, cspFilters12] = processCSPData2Class(dataClass1, dataClass2);
-SVMDataSet12 = [cspClass1; cspClass2];
-SVMLabels12 = [labelClass1; labelClass2];
-
-% 安静(1) VS オブジェクト後方移動(3)
-[cspClass1, cspClass3, cspFilters13] = processCSPData2Class(dataClass1, dataClass3);
-SVMDataSet13 = [cspClass1; cspClass3];
-SVMLabels13 = [labelClass1; labelClass3];
-
-% データセットを保存
-save(datasetName23, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet23', 'SVMLabels23', 'cspFilters23');
-save(datasetName12, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet12', 'SVMLabels12', 'cspFilters12');
-save(datasetName13, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet13', 'SVMLabels13', 'cspFilters13');
-disp(['データセットが更新されました。']);
-
-
-%% 分類器作成
-X23 = SVMDataSet23;
-y23 = SVMLabels23;
-X12 = SVMDataSet12;
-y12 = SVMLabels12;
-X13 = SVMDataSet13;
-y13 = SVMLabels13;
-
-svmMdl23 = runSVMAnalysis(X23, y23, params, K, params.modelType, params.useOptimization, 'Classifier 2-3');
-svmMdl12 = runSVMAnalysis(X12, y12, params, K, params.modelType, params.useOptimization, 'Classifier 1-2');
-svmMdl13 = runSVMAnalysis(X13, y13, params, K, params.modelType, params.useOptimization, 'Classifier 1-3');
+disp(['Class 1: ', num2str(size(dataClass1, 1))]);
+disp(['Class 2: ', num2str(size(dataClass2, 1))]);
+disp(['Accuracy', '：', num2str(meanAccuracy * 100), '%']);
 
 % データセットを保存
-save(datasetName23, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet23', 'SVMLabels23', 'cspFilters23', 'svmMdl23');
-save(datasetName12, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet12', 'SVMLabels12', 'cspFilters12', 'svmMdl12');
-save(datasetName13, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet13', 'SVMLabels13', 'cspFilters13', 'svmMdl13');
-disp(['データセットが保存されました。']);
+save(datasetName, 'eegData', 'preprocessedData', 'SVMDataSet', 'SVMLabels', 'cspFilters', 'svmMdl', 'movieStart');
+disp(['データセットが ', datasetName, ' として保存されました。']);
 
 
 %% ボタン構成
@@ -347,13 +319,17 @@ end
 
 % 動画・再生ボタン
 function labelButtonCallback(hObject, eventdata)
-    global t csv_file labelName csvFilename; % グローバル変数の宣言
+    global t csv_file labelName csvFilename markerData; 
     % ラベルボタンのコールバック関数の内容をここに記述
     current_time = toc - t.StartDelay; % 経過時間の計算
     disp(current_time);
     fprintf(csv_file, '%s,%.3f\n', labelName, current_time);
     fclose(csv_file); % ファイルを閉じる
     csv_file = fopen(csvFilename, 'a'); % ファイルを追記モードで再度開く
+    
+    % マーカー送信
+%     outlet.push_sample(markerData);
+%     disp('Send marker has value: ');
 end
 
 % タイマー呼び出し中処理

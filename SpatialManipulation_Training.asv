@@ -43,7 +43,7 @@ overlap = 4;
 portNumber = 12354; % UDPポート番号
 
 % データセットの名前を指定
-name = 'test_lake_MMI0704'; % ここを変更
+name = 'name'; % ここを変更
 datasetName12 = [name '_dataset12'];
 datasetName23 = [name '_dataset23'];
 datasetName13 = [name '_dataset13'];
@@ -53,17 +53,17 @@ labelName = 'stimulus';
 
 % パラメータ設定
 params = struct();
-params.modelType = 'ecoc'; % 'svm' or 'ecoc'
-params.useOptimization = true;
+params.modelType = 'svm'; % 'svm' or 'ecoc'
+params.useOptimization = false;
 params.kernelFunctions = {'linear', 'rbf', 'polynomial'};
 params.kernelScale = [0.1, 1, 10];
 params.boxConstraint = [0.1, 1, 10, 100];
 
 % EPOC X
 Fs = 256;
-Ch = {'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'}; % チャンネル
-selectedChannels = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
-numFilter = 7;
+Ch = {'AF3','F3','T7','P7','O1','O2','P8','T8','FC6','F4','AF4'}; % チャンネル
+selectedChannels = [4, 6, 8, 9, 10, 11, 12, 13, 15, 17]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
+numFilter = 5;
 K = 10;
 
 % ラベル作成

@@ -43,18 +43,16 @@ overlap = 4;
 portNumber = 12354; % UDPポート番号
 
 % データセットの名前を指定
-name = 'test_lake_MMI0704'; % ここを変更
-datasetName12 = [name '_dataset12'];
-datasetName23 = [name '_dataset23'];
-datasetName13 = [name '_dataset13'];
+name = 'TEST'; % ここを変更
+datasetName = [name '_dataset'];
 dataName = name;
 csvFilename = [name '_label.csv'];
 labelName = 'stimulus';
 
 % パラメータ設定
 params = struct();
-params.modelType = 'ecoc'; % 'svm' or 'ecoc'
-params.useOptimization = true;
+params.modelType = 'svm'; % 'svm' or 'ecoc'
+params.useOptimization = false;
 params.kernelFunctions = {'linear', 'rbf', 'polynomial'};
 params.kernelScale = [0.1, 1, 10];
 params.boxConstraint = [0.1, 1, 10, 100];
@@ -63,14 +61,14 @@ params.boxConstraint = [0.1, 1, 10, 100];
 Fs = 256;
 Ch = {'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'}; % チャンネル
 selectedChannels = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
-numFilter = 7;
+numFilter = 5;
 K = 10;
 
 % ラベル作成
-label = readmatrix('labels/SpatialAudio_Training.csv');
+label = readmatrix('labels/VRLocomotion_Training.csv');
 labelNum = size(label, 1);
 
-% データ数
+% 全データ数と1試行データ数
 nTrials = movieTimes * labelNum * overlap;
 singleTrials = labelNum * overlap;
 
@@ -160,10 +158,8 @@ end
 eegData = savedData; % EEGデータの保存
 
 % データセットを保存
-save(datasetName23, 'eegData');
-save(datasetName12, 'eegData');
-save(datasetName13, 'eegData');
-disp(['データセットが保存されました。']);
+save(datasetName, 'eegData');
+disp('データセットが保存されました。');
 
 % UDPソケットを閉じる
 fclose(udpSocket);
@@ -207,7 +203,7 @@ for ii = 1:movieTimes
     for jj = 1:labelNum
         for kk = 1:length(Ch)
             % 2秒間のデータを抽出
-            startIdx = round(Fs*((st+10)+15*(jj-1))) + 1;
+            startIdx = round(Fs*((st+5)+10*(jj-1))) + 1;
             endIdx = startIdx + Fs*2 - 1;
 
             % エポック
@@ -234,18 +230,14 @@ for i = 1:length(uniqueLabels)
 end
 dataClass1 = labelData{uniqueLabels == 1};
 dataClass2 = labelData{uniqueLabels == 2};
-dataClass3 = labelData{uniqueLabels == 3};
 
 % ラベルの配列を作成
 labelClass1 = repmat(1, size(dataClass1, 1), 1);
 labelClass2 = repmat(2, size(dataClass2, 1), 1);
-labelClass3 = repmat(3, size(dataClass3, 1), 1);
 
 % データセットを保存
-save(datasetName23, 'eegData', 'preprocessedData', 'movieStart');
-save(datasetName12, 'eegData', 'preprocessedData', 'movieStart');
-save(datasetName13, 'eegData', 'preprocessedData', 'movieStart');
-disp(['データセットが更新されました。']);
+save(datasetName, 'eegData', 'preprocessedData', 'movieStart');
+disp('データセットが更新されました。');
 
 
 
@@ -255,44 +247,24 @@ disp('機械学習解析中...しばらくお待ちください...');
 
 %% CSPデータセット作成
 % オブジェクト前方移動(2) VS オブジェクト後方移動(3)
-[cspClass2, cspClass3, cspFilters23] = processCSPData2Class(dataClass2, dataClass3);
-SVMDataSet23 = [cspClass2; cspClass3];
-SVMLabels23 = [labelClass2; labelClass3];
-
-% 安静(1) VS オブジェクト前方移動(2)
-[cspClass1, cspClass2, cspFilters12] = processCSPData2Class(dataClass1, dataClass2);
-SVMDataSet12 = [cspClass1; cspClass2];
-SVMLabels12 = [labelClass1; labelClass2];
-
-% 安静(1) VS オブジェクト後方移動(3)
-[cspClass1, cspClass3, cspFilters13] = processCSPData2Class(dataClass1, dataClass3);
-SVMDataSet13 = [cspClass1; cspClass3];
-SVMLabels13 = [labelClass1; labelClass3];
+[cspClass1, cspClass2, cspFilters] = processCSPData2Class(dataClass1, dataClass2);
+SVMDataSet = [cspClass1; cspClass2];
+SVMLabels = [labelClass1; labelClass2];
 
 % データセットを保存
-save(datasetName23, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet23', 'SVMLabels23', 'cspFilters23');
-save(datasetName12, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet12', 'SVMLabels12', 'cspFilters12');
-save(datasetName13, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet13', 'SVMLabels13', 'cspFilters13');
-disp(['データセットが更新されました。']);
+save(datasetName, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet', 'SVMLabels', 'cspFilters');
+disp('データセットが更新されました。');
 
 
 %% 分類器作成
-X23 = SVMDataSet23;
-y23 = SVMLabels23;
-X12 = SVMDataSet12;
-y12 = SVMLabels12;
-X13 = SVMDataSet13;
-y13 = SVMLabels13;
+X = SVMDataSet;
+y = SVMLabels;
 
-svmMdl23 = runSVMAnalysis(X23, y23, params, K, params.modelType, params.useOptimization, 'Classifier 2-3');
-svmMdl12 = runSVMAnalysis(X12, y12, params, K, params.modelType, params.useOptimization, 'Classifier 1-2');
-svmMdl13 = runSVMAnalysis(X13, y13, params, K, params.modelType, params.useOptimization, 'Classifier 1-3');
+svmMdl = runSVMAnalysis(X, y, params, K, params.modelType, params.useOptimization, 'Classifier 1-2');
 
 % データセットを保存
-save(datasetName23, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet23', 'SVMLabels23', 'cspFilters23', 'svmMdl23');
-save(datasetName12, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet12', 'SVMLabels12', 'cspFilters12', 'svmMdl12');
-save(datasetName13, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet13', 'SVMLabels13', 'cspFilters13', 'svmMdl13');
-disp(['データセットが保存されました。']);
+save(datasetName, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet', 'SVMLabels', 'cspFilters', 'svmMdl');
+disp('データセットが保存されました。');
 
 
 %% ボタン構成
@@ -347,13 +319,17 @@ end
 
 % 動画・再生ボタン
 function labelButtonCallback(hObject, eventdata)
-    global t csv_file labelName csvFilename; % グローバル変数の宣言
+    global t csv_file labelName csvFilename markerData; 
     % ラベルボタンのコールバック関数の内容をここに記述
     current_time = toc - t.StartDelay; % 経過時間の計算
     disp(current_time);
     fprintf(csv_file, '%s,%.3f\n', labelName, current_time);
     fclose(csv_file); % ファイルを閉じる
     csv_file = fopen(csvFilename, 'a'); % ファイルを追記モードで再度開く
+    
+    % マーカー送信
+%     outlet.push_sample(markerData);
+%     disp('Send marker has value: ');
 end
 
 % タイマー呼び出し中処理
