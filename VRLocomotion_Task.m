@@ -103,7 +103,7 @@ while isRunning
                 
         % 特徴量抽出
         features = extractCSPFeatures(analysisData, cspFilters);
-        features = features';
+        features = normalize(features, features_mean, features_std)';
         
         % SVMモデルから予想を出力
         [preLabel, preScore] = predict(svmMdl, features);

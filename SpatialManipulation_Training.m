@@ -278,10 +278,15 @@ disp(['データセットが更新されました。']);
 
 %% 分類器作成
 X23 = SVMDataSet23;
+% [X23, feature23_mean, feature23_std] = normalizeFeatures(X23);
 y23 = SVMLabels23;
+
 X12 = SVMDataSet12;
+% [X12, feature12_mean, feature12_std] =normalizeFeatures(X12);
 y12 = SVMLabels12;
+
 X13 = SVMDataSet13;
+% [X13, feature13_mean, feature13_std] = normalizeFeatures(X13);
 y13 = SVMLabels13;
 
 svmMdl23 = runSVMAnalysis(X23, y23, params, K, params.modelType, params.useOptimization, 'Classifier 2-3');
