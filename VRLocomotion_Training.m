@@ -43,7 +43,7 @@ overlap = 4;
 portNumber = 12354; % UDPポート番号
 
 % データセットの名前を指定
-name = 'yakkai_MI'; % ここを変更
+name = 'inooooue_OI'; % ここを変更
 datasetName = [name '_dataset'];
 dataName = name;
 csvFilename = [name '_label.csv'];

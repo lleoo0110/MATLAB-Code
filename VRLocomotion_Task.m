@@ -59,7 +59,7 @@ minf = 1;
 maxf = 30;
 filtOrder = 1500;
 portNumber = 12354; % UDPポート番号
-threshold = 0.5; % 閾値の設定
+threshold = 0.6; % 閾値の設定
 
 % EPOC X
 Fs = 256;
@@ -114,9 +114,6 @@ while isRunning
         else
             svm_output = 2;  % 負のクラス（発話イメージ状態）
         end
-        
-        % SVMモデルから予想を出力
-        svm_output = predict(svmMdl, features);
         
         % Unityへのデータ通信
         disp(preScore(1,1));
