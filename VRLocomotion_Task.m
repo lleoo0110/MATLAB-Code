@@ -59,7 +59,7 @@ minf = 1;
 maxf = 30;
 filtOrder = 1500;
 portNumber = 12354; % UDPポート番号
-threshold = 0.6; % 閾値の設定
+threshold = 0.4; % 閾値の設定
 
 % EPOC X
 Fs = 256;
@@ -103,7 +103,7 @@ while isRunning
                 
         % 特徴量抽出
         features = extractCSPFeatures(analysisData, cspFilters);
-        features = normalize(features, features_mean, features_std)';
+        features = normalizeRealtimeFeatures(features, features_mean, features_std)';
         
         % SVMモデルから予想を出力
         [preLabel, preScore] = predict(svmMdl, features);

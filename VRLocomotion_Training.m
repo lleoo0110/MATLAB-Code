@@ -43,7 +43,7 @@ overlap = 4;
 portNumber = 12354; % UDPポート番号
 
 % データセットの名前を指定
-name = 'inooooue_OI'; % ここを変更
+name = 'shohei_MI'; % ここを変更
 datasetName = [name '_dataset'];
 dataName = name;
 csvFilename = [name '_label.csv'];
@@ -258,7 +258,7 @@ disp('データセットが更新されました。');
 
 %% 分類器作成
 X = SVMDataSet;
-[X, feature_mean, feature_std] = normalize(X);
+[X, features_mean, features_std] = normalizeFeatures(X);
 y = SVMLabels;
 
 svmMdl = runSVMAnalysis(X, y, params, K, params.modelType, params.useOptimization, 'Classifier 1-2');
