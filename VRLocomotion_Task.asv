@@ -59,14 +59,14 @@ minf = 1;
 maxf = 30;
 filtOrder = getOptimalFilterOrder(Fs, minf, maxf);
 portNumber = 12354; % UDPポート番号
-numFilter = 7;
-K = 10;
 threshold = 0.5; % 閾値の設定
 
 % EPOC X
 Fs = 256;
-Ch = {'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'}; % チャンネル
-selectedChannels = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
+Ch = {'AF3','F3','T7','P7','O1','O2','P8','T8','F4','AF4'}; % チャンネル
+selectedChannels = [4, 6, 8, 9, 10, 11, 12, 13, 15, 17]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
+numFilter = 5;
+K = 10;
 
 % MN8
 % Fs = 128;
@@ -99,9 +99,10 @@ while isRunning
     
     if size(dataBuffer, 2) >= samplesPerWindow  
         preprocessedData = preprocessData(dataBuffer(:, 1:samplesPerWindow), Fs, filtOrder, minf, maxf); % データの前処理
+        analysisData = preprocessedData(:, end-Fs*2+1:end);
                 
         % 特徴量抽出
-        features = extractCSPFeatures(preprocessedData, cspFilters);
+        features = extractCSPFeatures(analysisData, cspFilters);
         features = normalizeRealtimeFeatures(features, features_mean, features_std)';
         
         % SVMモデルから予想を出力

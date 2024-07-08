@@ -46,7 +46,7 @@ numFilter = 5;
 K = 10;
 
 % データセットの名前を指定
-name = 'name'; % ここを変更
+name = 'iida_MI'; % ここを変更
 datasetName = [name '_dataset'];
 dataName = name;
 csvFilename = [name '_label.csv'];
@@ -169,7 +169,7 @@ preprocessedData = preprocessData(eegData(selectedChannels, :), Fs, filtOrder, m
 
 % エポック化
 % セクションで実行した時は，保存していたstimulusStart使うようにするため
-if ~exist('stimulusStart', 'var') || isempty(stimulusStart)
+if ~exist('movieStart', 'var') || isempty(stimulusStart)
     stimulusStart = readmatrix(csvFilename);
 end
 

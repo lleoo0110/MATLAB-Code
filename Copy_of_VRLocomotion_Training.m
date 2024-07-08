@@ -33,20 +33,19 @@ end
 
 
 %% パラメータ設定
-global isRunning Ch numFilter labelName csvFilename
+global isRunning  nTrials Ch numFilter labelName csvFilename singleTrials
 minf = 1;
 maxf = 30;
 Fs = 256;
 filtOrder = getOptimalFilterOrder(Fs, minf, maxf);
 isRunning = false;
+movieTimes = 4;
 overlap = 4;
-windowSize = 2; % データ抽出時間窓
+
 portNumber = 12354; % UDPポート番号
-numFilter = 5;
-K = 10;
 
 % データセットの名前を指定
-name = 'name'; % ここを変更
+name = 'iida_MI'; % ここを変更
 datasetName = [name '_dataset'];
 dataName = name;
 csvFilename = [name '_label.csv'];
@@ -63,6 +62,17 @@ params.boxConstraint = [0.1, 1, 10, 100];
 % EPOC X
 Ch = {'AF3','F3','T7','P7','O1','O2','P8','T8','F4','AF4'}; % チャンネル
 selectedChannels = [4, 6, 8, 9, 10, 11, 12, 13, 15, 17]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
+
+numFilter = 5;
+K = 10;
+
+% ラベル作成
+label = readmatrix('labels/VRLocomotion_Training.csv');
+labelNum = size(label, 1);
+
+% 全データ数と1試行データ数
+nTrials = movieTimes * labelNum * overlap;
+singleTrials = labelNum * overlap;
 
 
 %% 脳波データ計測
@@ -107,12 +117,9 @@ while isRunning
         str = char(receivedData');
 
         % 受信データに応じて処理を行う
-        if strcmp(str, 'Neutral')
-            disp('Neutral Start');
-            labelButtonCallback(1);
-        elseif strcmp(str, 'WalkImagery')
-            disp('WalkIMagery Start');
-            labelButtonCallback(2);
+        if strcmp(str, 'Start')
+            disp('トレーニング開始');
+            labelButtonCallback();
         else
             disp(['Unknown command received: ', str]);
         end
@@ -165,49 +172,52 @@ clear udpSocket;
 disp('データ解析中...しばらくお待ちください...');
 
 % データの前処理
-preprocessedData = preprocessData(eegData(selectedChannels, :), Fs, filtOrder, minf, maxf);
+preprocessedData = preprocessData(eegData(:), Fs, filtOrder, minf, maxf);
+
+% ラベル作成
+labels = [];
+for ii = 1:labelNum
+    for kk = 1:overlap
+       labels(overlap*(ii-1)+kk,1) = label(ii,1);
+    end
+end
+labels = repmat(labels, movieTimes, 1);
+
 
 % エポック化
-% セクションで実行した時は，保存していたstimulusStart使うようにするため
-if ~exist('stimulusStart', 'var') || isempty(stimulusStart)
-    stimulusStart = readmatrix(csvFilename);
+% セクションで実行した時は，保存していたmovieStart使うようにするため
+if ~exist('movieStart', 'var') || isempty(movieStart)
+    movieStart = readmatrix(csvFilename);
 end
 
-% データセットの初期化
-nTrials = size(stimulusStart, 1);
-totalEpochs = nTrials * overlap;
-dataSet = cell(totalEpochs, 1);
-labels = zeros(totalEpochs, 1);
-
-epochIndex = 1;
-for ii = 1:nTrials
-    startIdx = round(Fs * stimulusStart(ii, 2)) + 1;
-    endIdx = startIdx + Fs * windowSize - 1;
+for ii = 1:movieTimes
+    % 刺激開始時間
+    switch ii
+        case 1
+            st = movieStart(1,2);
+        case 2
+            st = movieStart(2,2);
+        case 3
+            st = movieStart(3,2);
+        case 4
+            st = movieStart(4,2);
+    end
     
-    % エポック化
-    for jj = 1:overlap
-        shiftAmount = round((jj - 1) * Fs * 1);  % 1秒ずつ時間窓をずらす
-        epochStartIdx = startIdx + shiftAmount;
-        epochEndIdx = epochStartIdx + Fs * windowSize - 1;
-        
-        % データの範囲チェック
-        if epochEndIdx <= size(preprocessedData, 2)
-            dataSet{epochIndex} = preprocessedData(:, epochStartIdx:epochEndIdx);
-            labels(epochIndex) = stimulusStart(ii, 1);  % ラベルを保存
-            epochIndex = epochIndex + 1;
-        else
-            warning('エポック %d-%d がデータの範囲外です。スキップします。', ii, jj);
+    for jj = 1:labelNum
+        for kk = 1:length(Ch)
+            % 2秒間のデータを抽出
+            startIdx = round(Fs*((st+5)+10*(jj-1))) + 1;
+            endIdx = startIdx + Fs*2 - 1;
+
+            % エポック
+            tt = 0;
+            for ll = 1:overlap
+                DataSet{singleTrials*(ii-1)+overlap*(jj-1)+ll, 1}(kk,:) = preprocessedData(kk,startIdx+round(tt*Fs):endIdx+round(tt*Fs)); % tt秒後のデータ
+                tt = tt + 1;
+            end
         end
     end
 end
-
-% 使用されなかったセルを削除
-DataSet = DataSet(1:epochIndex-1);
-labels = labels(1:epochIndex-1);
-
-% データの形状を確認
-disp(['エポック化されたデータセットの数: ', num2str(length(DataSet))]);
-disp(['各エポックのサイズ: ', num2str(size(DataSet{1}))]);
 
 
 % データセットを分割
@@ -229,7 +239,7 @@ labelClass1 = repmat(1, size(dataClass1, 1), 1);
 labelClass2 = repmat(2, size(dataClass2, 1), 1);
 
 % データセットを保存
-save(datasetName, 'eegData', 'preprocessedData', 'stimulusStart');
+save(datasetName, 'eegData', 'preprocessedData', 'movieStart');
 disp('データセットが更新されました。');
 
 
@@ -239,24 +249,25 @@ disp('機械学習解析中...しばらくお待ちください...');
 
 
 %% CSPデータセット作成
+% オブジェクト前方移動(2) VS オブジェクト後方移動(3)
 [cspClass1, cspClass2, cspFilters] = processCSPData2Class(dataClass1, dataClass2);
 SVMDataSet = [cspClass1; cspClass2];
 SVMLabels = [labelClass1; labelClass2];
 
 % データセットを保存
-save(datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'SVMDataSet', 'SVMLabels', 'cspFilters');
+save(datasetName, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet', 'SVMLabels', 'cspFilters');
 disp('データセットが更新されました。');
 
 
 %% 分類器作成
 X = SVMDataSet;
-[X, features_mean, features_std] = normalizeFeatures(X);
+[X, feature_mean, feature_std] = normalizeFeatures(X);
 y = SVMLabels;
 
 svmMdl = runSVMAnalysis(X, y, params, K, params.modelType, params.useOptimization, 'Classifier 1-2');
 
 % データセットを保存
-save(datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'SVMDataSet', 'SVMLabels', 'cspFilters', 'svmMdl');
+save(datasetName, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet', 'SVMLabels', 'cspFilters', 'svmMdl');
 disp('データセットが保存されました。');
 
 
@@ -296,7 +307,7 @@ function startButtonCallback(hObject, eventdata)
 end
 
 % 脳波データ記録停止ボタン
-function stopButtonCallback()
+function stopButtonCallback(hObject, eventdata)
     global isRunning t startButton stopButton labelButton; % グローバル変数の宣言
     
     isRunning = false;
@@ -311,12 +322,12 @@ function stopButtonCallback()
 end
 
 % 動画・再生ボタン
-function labelButtonCallback(label)
-    global t csv_file csvFilename markerData; 
+function labelButtonCallback(hObject, eventdata)
+    global t csv_file labelName csvFilename markerData; 
     % ラベルボタンのコールバック関数の内容をここに記述
     current_time = toc - t.StartDelay; % 経過時間の計算
     disp(current_time);
-    fprintf(csv_file, '%s,%.3f\n', label, current_time);
+    fprintf(csv_file, '%s,%.3f\n', labelName, current_time);
     fclose(csv_file); % ファイルを閉じる
     csv_file = fopen(csvFilename, 'a'); % ファイルを追記モードで再度開く
     
