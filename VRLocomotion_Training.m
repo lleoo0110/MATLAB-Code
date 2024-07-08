@@ -42,7 +42,7 @@ isRunning = false;
 overlap = 4;
 windowSize = 2; % データ抽出時間窓
 portNumber = 12354; % UDPポート番号
-numFilter = 5;
+numFilter = 6;
 K = 10;
 
 % データセットの名前を指定
@@ -54,15 +54,15 @@ labelName = 'stimulus';
 
 % SVMパラメータ設定
 params = struct();
-params.modelType = 'ecoc'; % 'svm' or 'ecoc'
-params.useOptimization = false;
+params.modelType = 'svm'; % 'svm' or 'ecoc'
+params.useOptimization = true;
 params.kernelFunctions = {'linear', 'rbf', 'polynomial'};
 params.kernelScale = [0.1, 1, 10];
 params.boxConstraint = [0.1, 1, 10, 100];
 
 % EPOC X
-Ch = {'AF3','F3','T7','P7','O1','O2','P8','T8','F4','AF4'}; % チャンネル
-selectedChannels = [4, 6, 8, 9, 10, 11, 12, 13, 15, 17]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
+Ch = {'AF3','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4'}; % チャンネル
+selectedChannels = [4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
 
 
 %% 脳波データ計測
@@ -75,7 +75,7 @@ createMovieStartGUI();
 eegData = [];
 preprocessedData = [];
 labels = [];
-movieStart = [];
+stimulusStart = [];
 
 % UDPソケットを作成
 udpSocket = udp('127.0.0.1', 'LocalPort', portNumber);
@@ -150,9 +150,10 @@ while true
     end
 end
 eegData = savedData; % EEGデータの保存
+stimulusStart = readmatrix(csvFilename);
 
 % データセットを保存
-save(datasetName, 'eegData');
+save(datasetName, 'eegData', 'stimulusStart');
 disp('データセットが保存されました。');
 
 % UDPソケットを閉じる
@@ -176,7 +177,7 @@ end
 % データセットの初期化
 nTrials = size(stimulusStart, 1);
 totalEpochs = nTrials * overlap;
-dataSet = cell(totalEpochs, 1);
+DataSet = cell(totalEpochs, 1);
 labels = zeros(totalEpochs, 1);
 
 epochIndex = 1;
@@ -192,7 +193,7 @@ for ii = 1:nTrials
         
         % データの範囲チェック
         if epochEndIdx <= size(preprocessedData, 2)
-            dataSet{epochIndex} = preprocessedData(:, epochStartIdx:epochEndIdx);
+            DataSet{epochIndex} = preprocessedData(:, epochStartIdx:epochEndIdx);
             labels(epochIndex) = stimulusStart(ii, 1);  % ラベルを保存
             epochIndex = epochIndex + 1;
         else
@@ -296,7 +297,7 @@ function startButtonCallback(hObject, eventdata)
 end
 
 % 脳波データ記録停止ボタン
-function stopButtonCallback()
+function stopButtonCallback(hObject, eventdata)
     global isRunning t startButton stopButton labelButton; % グローバル変数の宣言
     
     isRunning = false;
@@ -316,7 +317,7 @@ function labelButtonCallback(label)
     % ラベルボタンのコールバック関数の内容をここに記述
     current_time = toc - t.StartDelay; % 経過時間の計算
     disp(current_time);
-    fprintf(csv_file, '%s,%.3f\n', label, current_time);
+    fprintf(csv_file, '%d,%.3f\n', label, current_time);
     fclose(csv_file); % ファイルを閉じる
     csv_file = fopen(csvFilename, 'a'); % ファイルを追記モードで再度開く
     

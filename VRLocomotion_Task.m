@@ -57,15 +57,15 @@ disp('Now receiving data...');
 global numFilter isRunning portNumber
 minf = 1;
 maxf = 30;
+Fs = 256;
 filtOrder = getOptimalFilterOrder(Fs, minf, maxf);
 portNumber = 12354; % UDPポート番号
 threshold = 0.5; % 閾値の設定
 
 % EPOC X
-Fs = 256;
-Ch = {'AF3','F3','T7','P7','O1','O2','P8','T8','F4','AF4'}; % チャンネル
-selectedChannels = [4, 6, 8, 9, 10, 11, 12, 13, 15, 17]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
-numFilter = 5;
+Ch = {'AF3','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4'}; % チャンネル
+selectedChannels = [4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
+numFilter = 6;
 K = 10;
 
 % MN8
