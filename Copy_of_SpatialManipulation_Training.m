@@ -33,10 +33,10 @@ end
 
 
 %% パラメータ設定
-global isRunning Fs minf maxf nTrials Ch numFilter filtOrder labelName csvFilename singleTrials
+global isRunning nTrials Ch numFilter labelName csvFilename singleTrials
 minf = 1;
 maxf = 30;
-filtOrder = 1500;
+filtOrder = getOptimalFilterOrder(Fs, minf, maxf);
 isRunning = false;
 movieTimes = 4;
 overlap = 4;
@@ -44,9 +44,7 @@ portNumber = 12354; % UDPポート番号
 
 % データセットの名前を指定
 name = 'name'; % ここを変更
-datasetName12 = [name '_dataset12'];
-datasetName23 = [name '_dataset23'];
-datasetName13 = [name '_dataset13'];
+datasetName = [name '_dataset'];
 dataName = name;
 csvFilename = [name '_label.csv'];
 labelName = 'stimulus';
@@ -160,9 +158,7 @@ end
 eegData = savedData; % EEGデータの保存
 
 % データセットを保存
-save(datasetName23, 'eegData');
-save(datasetName12, 'eegData');
-save(datasetName13, 'eegData');
+save(datasetName, 'eegData');
 disp(['データセットが保存されました。']);
 
 % UDPソケットを閉じる
@@ -234,69 +230,39 @@ for i = 1:length(uniqueLabels)
 end
 dataClass1 = labelData{uniqueLabels == 1};
 dataClass2 = labelData{uniqueLabels == 2};
-dataClass3 = labelData{uniqueLabels == 3};
 
 % ラベルの配列を作成
 labelClass1 = repmat(1, size(dataClass1, 1), 1);
 labelClass2 = repmat(2, size(dataClass2, 1), 1);
-labelClass3 = repmat(3, size(dataClass3, 1), 1);
 
 % データセットを保存
-save(datasetName23, 'eegData', 'preprocessedData', 'movieStart');
-save(datasetName12, 'eegData', 'preprocessedData', 'movieStart');
-save(datasetName13, 'eegData', 'preprocessedData', 'movieStart');
+save(datasetName, 'eegData', 'preprocessedData', 'movieStart');
 disp(['データセットが更新されました。']);
-
 
 
 %% 脳波データ解析
 disp('機械学習解析中...しばらくお待ちください...');
 
-
 %% CSPデータセット作成
-% オブジェクト前方移動(2) VS オブジェクト後方移動(3)
-[cspClass2, cspClass3, cspFilters23] = processCSPData2Class(dataClass2, dataClass3);
-SVMDataSet23 = [cspClass2; cspClass3];
-SVMLabels23 = [labelClass2; labelClass3];
-
-% 安静(1) VS オブジェクト前方移動(2)
-[cspClass1, cspClass2, cspFilters12] = processCSPData2Class(dataClass1, dataClass2);
-SVMDataSet12 = [cspClass1; cspClass2];
-SVMLabels12 = [labelClass1; labelClass2];
-
-% 安静(1) VS オブジェクト後方移動(3)
-[cspClass1, cspClass3, cspFilters13] = processCSPData2Class(dataClass1, dataClass3);
-SVMDataSet13 = [cspClass1; cspClass3];
-SVMLabels13 = [labelClass1; labelClass3];
+% オブジェクト前方移動(1) VS オブジェクト後方移動(2)
+[cspClass1, cspClass2, cspFilters] = processCSPData2Class(dataClass1, dataClass2);
+SVMDataSet = [cspClass1; cspClass2];
+SVMLabels = [labelClass1; labelClass2];
 
 % データセットを保存
-save(datasetName23, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet23', 'SVMLabels23', 'cspFilters23');
-save(datasetName12, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet12', 'SVMLabels12', 'cspFilters12');
-save(datasetName13, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet13', 'SVMLabels13', 'cspFilters13');
+save(datasetName, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet', 'SVMLabels', 'cspFilters');
 disp(['データセットが更新されました。']);
 
 
 %% 分類器作成
-X23 = SVMDataSet23;
-% [X23, feature23_mean, feature23_std] = normalizeFeatures(X23);
-y23 = SVMLabels23;
+X = SVMDataSet;
+[X, features_mean, features_std] =normalizeFeatures(X);
+y = SVMLabels;
 
-X12 = SVMDataSet12;
-% [X12, feature12_mean, feature12_std] =normalizeFeatures(X12);
-y12 = SVMLabels12;
-
-X13 = SVMDataSet13;
-% [X13, feature13_mean, feature13_std] = normalizeFeatures(X13);
-y13 = SVMLabels13;
-
-svmMdl23 = runSVMAnalysis(X23, y23, params, K, params.modelType, params.useOptimization, 'Classifier 2-3');
-svmMdl12 = runSVMAnalysis(X12, y12, params, K, params.modelType, params.useOptimization, 'Classifier 1-2');
-svmMdl13 = runSVMAnalysis(X13, y13, params, K, params.modelType, params.useOptimization, 'Classifier 1-3');
+svmMdl = runSVMAnalysis(X, y, params, K, params.modelType, params.useOptimization, 'Classifier 1-2');
 
 % データセットを保存
-save(datasetName23, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet23', 'SVMLabels23', 'cspFilters23', 'svmMdl23');
-save(datasetName12, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet12', 'SVMLabels12', 'cspFilters12', 'svmMdl12');
-save(datasetName13, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet13', 'SVMLabels13', 'cspFilters13', 'svmMdl13');
+save(datasetName, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet', 'SVMLabels', 'cspFilters', 'svmMdl');
 disp(['データセットが保存されました。']);
 
 

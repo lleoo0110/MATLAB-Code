@@ -109,16 +109,16 @@ while isRunning
         % 受信データに応じて処理を行う
         if strcmp(str, 'Forward')
             disp('Forward Start');
-            labelButtonCallback(1);
+            labelButtonCallback(2);
         elseif strcmp(str, 'Backward')
             disp('Backward Start');
-            labelButtonCallback(2);
+            labelButtonCallback(3);
         elseif strcmp(str, 'ForwardWithFeedback')
             disp('Forward Start');
-            labelButtonCallbackWithFeedback(1);
+            labelButtonCallbackWithFeedback(2);
         elseif strcmp(str, 'BackwardWithFeedback')
             disp('Backward Start');
-            labelButtonCallbackWithFeedback(2);
+            labelButtonCallbackWithFeedback(3);
         else
             disp(['Unknown command received: ', str]);
         end
@@ -230,10 +230,6 @@ end
 dataClass1 = labelData{uniqueLabels == 1};
 dataClass2 = labelData{uniqueLabels == 2};
 
-% ラベルの配列を作成
-labelClass1 = repmat(1, size(dataClass1, 1), 1);
-labelClass2 = repmat(2, size(dataClass2, 1), 1);
-
 % データセットを保存
 save(datasetName, 'eegData', 'preprocessedData', 'stimulusStart');
 disp('データセットが更新されました。');
@@ -302,7 +298,7 @@ function startButtonCallback(hObject, eventdata)
 end
 
 % 脳波データ記録停止ボタン
-function stopButtonCallback()
+function stopButtonCallback(hObject, eventdata)
     global isRunning t startButton stopButton labelButton; % グローバル変数の宣言
     
     isRunning = false;
