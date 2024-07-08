@@ -54,25 +54,26 @@ end
 
 % データ受信と処理
 disp('Now receiving data...');
-global Fs minf maxf filtOrder numFilter isRunning
+global numFilter isRunning portNumber
 minf = 1;
 maxf = 30;
-filtOrder = 1500;
+filtOrder = getOptimalFilterOrder(Fs, minf, maxf);
 portNumber = 12354; % UDPポート番号
 threshold = 0.5; % 閾値の設定
 
 % EPOC X
 Fs = 256;
-Ch = {'AF3','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4'}; % チャンネル
-selectedChannels = [4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17]; % 'AF3','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4'
-numFilter =6;
+Ch = {'AF3','F3','T7','P7','O1','O2','P8','T8','F4','AF4'}; % チャンネル
+selectedChannels = [4, 6, 8, 9, 10, 11, 12, 13, 15, 17]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
+numFilter = 5;
+K = 10;
 
 % MN8
 % Fs = 128;
 % Ch = {'T7','T8'};
 % selectedChannels = [4, 5]; % T7, T8のデータを選択
 
-windowSize = 20; % ウィンドウサイズ（秒）
+windowSize = 2; % ウィンドウサイズ（秒）
 stepSize = 1; % ステップサイズ（秒）
 samplesPerWindow = windowSize * Fs; % ウィンドウ内のサンプル数
 stepSamples = stepSize * Fs; % ステップサイズに相当するサンプル数
@@ -102,20 +103,17 @@ while isRunning
                 
         % 特徴量抽出
         features = extractCSPFeatures(analysisData, cspFilters);
-        features = features';
+        features = normalizeRealtimeFeatures(features, features_mean, features_std)';
         
         % SVMモデルから予想を出力
         [preLabel, preScore] = predict(svmMdl, features);
         
         % 閾値による決定
         if preScore(1,1) >= threshold
-            svmOutput = 1;  % 正のクラス（安静状態）
+            svm_output = 1;  % 正のクラス（安静状態）
         else
-            svmOutput = 2;  % 負のクラス（発話イメージ状態）
+            svm_output = 2;  % 負のクラス（発話イメージ状態）
         end
-        
-        % SVMモデルから予想を出力
-        svm_output = predict(svmMdl, features);
         
         % Unityへのデータ通信
         disp(preScore(1,1));

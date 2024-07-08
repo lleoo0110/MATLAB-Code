@@ -32,45 +32,65 @@ for k = 1:inf.channel_count()
 end
 
 
-%%  パラメータ設定
-disp('Now receiving data...');
+%% パラメータ設定
 global isRunning Fs minf maxf nTrials Ch numFilter filtOrder labelName csvFilename singleTrials
 minf = 1;
-maxf = 40;
+maxf = 30;
 filtOrder = 1500;
 isRunning = false;
-movieTimes = 10;
+movieTimes = 4;
 overlap = 4;
-
-% ラベル作成
-label = readmatrix('labels/-.csv');
-labelNum = size(label, 1);
-
-nTrials = movieTimes * labelNum * overlap;
-singleTrials = labelNum * overlap;
+portNumber = 12354; % UDPポート番号
 
 % データセットの名前を指定
-name = 'test'; % ここを変更
-datasetName = [name '_dataset'];
+name = 'name'; % ここを変更
+datasetName12 = [name '_dataset12'];
+datasetName23 = [name '_dataset23'];
+datasetName13 = [name '_dataset13'];
 dataName = name;
 csvFilename = [name '_label.csv'];
 labelName = 'stimulus';
+
+% パラメータ設定
+params = struct();
+params.modelType = 'svm'; % 'svm' or 'ecoc'
+params.useOptimization = false;
+params.kernelFunctions = {'linear', 'rbf', 'polynomial'};
+params.kernelScale = [0.1, 1, 10];
+params.boxConstraint = [0.1, 1, 10, 100];
 
 % EPOC X
 Fs = 256;
 Ch = {'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'}; % チャンネル
 selectedChannels = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
 numFilter = 7;
-K=10;
+K = 10;
+
+% ラベル作成
+label = readmatrix('labels/SpatialAudio_Training.csv');
+labelNum = size(label, 1);
+
+% データ数
+nTrials = movieTimes * labelNum * overlap;
+singleTrials = labelNum * overlap;
 
 
 %% 脳波データ計測
-% GUIの作成と表
+disp('データ計測中...');
+
+% GUIの作成と表示
 createMovieStartGUI();
 
+% データ初期化
 eegData = [];
 preprocessedData = [];
 labels = [];
+movieStart = [];
+
+% UDPソケットを作成
+udpSocket = udp('127.0.0.1', 'LocalPort', portNumber);
+% 受信データがある場合に処理を行う    
+fopen(udpSocket);
 
 while ~isRunning
     % 待機時間
@@ -90,6 +110,21 @@ while isRunning
     vec = vec(:); % 1x19の行ベクトルを19x1の列ベクトルに変換
     selectedData = vec(selectedChannels);
     eegData = [eegData selectedData];
+    
+    if udpSocket.BytesAvailable > 0
+        % データを受信
+        receivedData = fread(udpSocket, udpSocket.BytesAvailable, 'uint8');
+        % 受信データを文字列に変換
+        str = char(receivedData');
+
+        % 受信データに応じて処理を行う
+        if strcmp(str, 'Start')
+            disp('トレーニング開始');
+            labelButtonCallback();
+        else
+            disp(['Unknown command received: ', str]);
+        end
+    end
     
     elapsedTime = toc(lastSaveTime);
     if elapsedTime >= saveInterval
@@ -122,33 +157,60 @@ while true
         break;
     end
 end
-eegData = savedData;
+eegData = savedData; % EEGデータの保存
 
-% 取得した脳波データから解析
+% データセットを保存
+save(datasetName23, 'eegData');
+save(datasetName12, 'eegData');
+save(datasetName13, 'eegData');
+disp(['データセットが保存されました。']);
+
+% UDPソケットを閉じる
+fclose(udpSocket);
+delete(udpSocket);
+clear udpSocket;
+
+%% 取得した脳波データの前処理
 disp('データ解析中...しばらくお待ちください...');
 
+% データの前処理
+preprocessedData = preprocessData(eegData, Fs, filtOrder, minf, maxf);
 
-%%  データの前処理
-preprocessedData = preprocessData(eegData, filtOrder, minf, maxf);
+% ラベル作成
+labels = [];
+for ii = 1:labelNum
+    for kk = 1:overlap
+       labels(overlap*(ii-1)+kk,1) = label(ii,1);
+    end
+end
+labels = repmat(labels, movieTimes, 1);
+
 
 % エポック化
-movieStart = readmatrix(csvFilename);
+% セクションで実行した時は，保存していたmovieStart使うようにするため
+if ~exist('movieStart', 'var') || isempty(movieStart)
+    movieStart = readmatrix(csvFilename);
+end
 for ii = 1:movieTimes
     % 刺激開始時間
     switch ii
         case 1
-        st = movieStart(1,2);
+            st = movieStart(1,2);
         case 2
-        st = movieStart(2,2);
+            st = movieStart(2,2);
+        case 3
+            st = movieStart(3,2);
+        case 4
+            st = movieStart(4,2);
     end
     
     for jj = 1:labelNum
         for kk = 1:length(Ch)
             % 2秒間のデータを抽出
-            startIdx = round(Fs*((st+5)+10*(jj-1))) + 1;
+            startIdx = round(Fs*((st+10)+15*(jj-1))) + 1;
             endIdx = startIdx + Fs*2 - 1;
 
-            % データ数増加
+            % エポック
             tt = 0;
             for ll = 1:overlap
                 DataSet{singleTrials*(ii-1)+overlap*(jj-1)+ll, 1}(kk,:) = preprocessedData(kk,startIdx+round(tt*Fs):endIdx+round(tt*Fs)); % tt秒後のデータ
@@ -159,6 +221,7 @@ for ii = 1:movieTimes
 end
 
 
+% データセットを分割
 % ラベルの一覧を取得
 uniqueLabels = unique(labels);
 
@@ -172,67 +235,69 @@ end
 dataClass1 = labelData{uniqueLabels == 1};
 dataClass2 = labelData{uniqueLabels == 2};
 dataClass3 = labelData{uniqueLabels == 3};
-%  ...
 
 % ラベルの配列を作成
 labelClass1 = repmat(1, size(dataClass1, 1), 1);
 labelClass2 = repmat(2, size(dataClass2, 1), 1);
 labelClass3 = repmat(3, size(dataClass3, 1), 1);
-% ...
 
-%% データ保存
-save(datasetName, 'eegData', 'preprocessedData ', 'dataClass', 'movieStart');
-disp('データ解析完了しました');
+% データセットを保存
+save(datasetName23, 'eegData', 'preprocessedData', 'movieStart');
+save(datasetName12, 'eegData', 'preprocessedData', 'movieStart');
+save(datasetName13, 'eegData', 'preprocessedData', 'movieStart');
+disp(['データセットが更新されました。']);
+
 
 
 %% 脳波データ解析
-% 全組み合わせの分類精度算出
-accuracyMatrix = zeros(6, 6);
-% 全てのクラスの組み合わせについてループ
-for i = 1:6
-    for j = i+1:6
-        % クラスデータとラベルを取得
-        dataClassA = eval(['dataClass', num2str(i)]);
-        dataClassB = eval(['dataClass', num2str(j)]);
-        labelClassA = repmat(1, size(dataClassA, 1), 1);
-        labelClassB = repmat(2, size(dataClassB, 1), 1);
-        
-        % CSP特徴抽出
-        [cspClassA, cspClassB, cspFiltersAB] = processCSPData2Class(dataClassA, dataClassB);
-        SVMDataSet = [cspClassA; cspClassB];
-        SVMLabels = [labelClassA; labelClassB];
-        
-        % SVMモデルの学習
-        X = SVMDataSet;
-        y = SVMLabels;
-        
-        t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
-        svmMdl = fitcecoc(X, y, 'Learners', t);
-%         [preLabel, preScores] = predict(svmProbModel, X);
-%         classOrder = svmProbModel.ClassNames;
+disp('機械学習解析中...しばらくお待ちください...');
 
-        % 交差検証による精度評価
-        CVSVMModel = crossval(svmMdl, 'KFold', K);
-        loss = kfoldLoss(CVSVMModel);
-        meanAccuracy = 1 - loss;
 
-        % ブロッククロスバリデーション
-        % [meanAccuracy, stdAccuracy, accuracies, confMat, f1Score] = blockCrossvalidation(X, y, K);
-        
-        % 分類精度を行列に保存
-        accuracyMatrix(i, j) = meanAccuracy;
-        accuracyMatrix(j, i) = meanAccuracy;
-        
-        % 分類精度を表示
-        disp(['Class ', num2str(i), ' vs Class ', num2str(j), ': ', num2str(meanAccuracy * 100), '%']);
-        close('all');
-    end
-end
+%% CSPデータセット作成
+% オブジェクト前方移動(2) VS オブジェクト後方移動(3)
+[cspClass2, cspClass3, cspFilters23] = processCSPData2Class(dataClass2, dataClass3);
+SVMDataSet23 = [cspClass2; cspClass3];
+SVMLabels23 = [labelClass2; labelClass3];
 
-% 分類精度行列を表示
-disp('Accuracy Matrix:');
-disp(accuracyMatrix);
+% 安静(1) VS オブジェクト前方移動(2)
+[cspClass1, cspClass2, cspFilters12] = processCSPData2Class(dataClass1, dataClass2);
+SVMDataSet12 = [cspClass1; cspClass2];
+SVMLabels12 = [labelClass1; labelClass2];
 
+% 安静(1) VS オブジェクト後方移動(3)
+[cspClass1, cspClass3, cspFilters13] = processCSPData2Class(dataClass1, dataClass3);
+SVMDataSet13 = [cspClass1; cspClass3];
+SVMLabels13 = [labelClass1; labelClass3];
+
+% データセットを保存
+save(datasetName23, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet23', 'SVMLabels23', 'cspFilters23');
+save(datasetName12, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet12', 'SVMLabels12', 'cspFilters12');
+save(datasetName13, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet13', 'SVMLabels13', 'cspFilters13');
+disp(['データセットが更新されました。']);
+
+
+%% 分類器作成
+X23 = SVMDataSet23;
+% [X23, feature23_mean, feature23_std] = normalizeFeatures(X23);
+y23 = SVMLabels23;
+
+X12 = SVMDataSet12;
+% [X12, feature12_mean, feature12_std] =normalizeFeatures(X12);
+y12 = SVMLabels12;
+
+X13 = SVMDataSet13;
+% [X13, feature13_mean, feature13_std] = normalizeFeatures(X13);
+y13 = SVMLabels13;
+
+svmMdl23 = runSVMAnalysis(X23, y23, params, K, params.modelType, params.useOptimization, 'Classifier 2-3');
+svmMdl12 = runSVMAnalysis(X12, y12, params, K, params.modelType, params.useOptimization, 'Classifier 1-2');
+svmMdl13 = runSVMAnalysis(X13, y13, params, K, params.modelType, params.useOptimization, 'Classifier 1-3');
+
+% データセットを保存
+save(datasetName23, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet23', 'SVMLabels23', 'cspFilters23', 'svmMdl23');
+save(datasetName12, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet12', 'SVMLabels12', 'cspFilters12', 'svmMdl12');
+save(datasetName13, 'eegData', 'preprocessedData',  'movieStart', 'SVMDataSet13', 'SVMLabels13', 'cspFilters13', 'svmMdl13');
+disp(['データセットが保存されました。']);
 
 
 %% ボタン構成

@@ -54,10 +54,10 @@ end
 
 % データ受信と処理
 disp('Now receiving data...');
-global Fs minf maxf filtOrder numFilter isRunning portNumber
+global numFilter isRunning portNumber
 minf = 1;
 maxf = 30;
-filtOrder = 1500;
+filtOrder = getOptimalFilterOrder(Fs, minf, maxf);
 portNumber = 12354; % UDPポート番号
 threshold = 0.5; % 閾値の設定
 
@@ -73,7 +73,7 @@ K = 10;
 % Ch = {'T7','T8'};
 % selectedChannels = [4, 5]; % T7, T8のデータを選択
 
-windowSize = 20; % ウィンドウサイズ（秒）
+windowSize = 2; % ウィンドウサイズ（秒）
 stepSize = 1; % ステップサイズ（秒）
 samplesPerWindow = windowSize * Fs; % ウィンドウ内のサンプル数
 stepSamples = stepSize * Fs; % ステップサイズに相当するサンプル数
@@ -99,11 +99,10 @@ while isRunning
     
     if size(dataBuffer, 2) >= samplesPerWindow  
         preprocessedData = preprocessData(dataBuffer(:, 1:samplesPerWindow), Fs, filtOrder, minf, maxf); % データの前処理
-        analysisData = preprocessedData(:, end-Fs*2+1:end);
                 
         % 特徴量抽出
-        features = extractCSPFeatures(analysisData, cspFilters);
-        features = normalize(features, features_mean, features_std)';
+        features = extractCSPFeatures(preprocessedData, cspFilters);
+        features = normalizeRealtimeFeatures(features, features_mean, features_std)';
         
         % SVMモデルから予想を出力
         [preLabel, preScore] = predict(svmMdl, features);
@@ -114,9 +113,6 @@ while isRunning
         else
             svm_output = 2;  % 負のクラス（発話イメージ状態）
         end
-        
-        % SVMモデルから予想を出力
-        svm_output = predict(svmMdl, features);
         
         % Unityへのデータ通信
         disp(preScore(1,1));

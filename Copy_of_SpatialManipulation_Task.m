@@ -54,26 +54,24 @@ end
 
 % データ受信と処理
 disp('Now receiving data...');
-global numFilter isRunning portNumber
+global Fs minf maxf filtOrder numFilter isRunning portNumber
 minf = 1;
 maxf = 30;
-filtOrder = getOptimalFilterOrder(Fs, minf, maxf);
+filtOrder = 1500;
 portNumber = 12354; % UDPポート番号
-numFilter = 7;
-K = 10;
-threshold = 0.5; % 閾値の設定
 
 % EPOC X
 Fs = 256;
 Ch = {'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'}; % チャンネル
 selectedChannels = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
+numFilter =7;
 
 % MN8
 % Fs = 128;
 % Ch = {'T7','T8'};
 % selectedChannels = [4, 5]; % T7, T8のデータを選択
 
-windowSize = 2; % ウィンドウサイズ（秒）
+windowSize = 20; % ウィンドウサイズ（秒）
 stepSize = 1; % ステップサイズ（秒）
 samplesPerWindow = windowSize * Fs; % ウィンドウ内のサンプル数
 stepSamples = stepSize * Fs; % ステップサイズに相当するサンプル数
@@ -97,27 +95,43 @@ while isRunning
     end
     
     
-    if size(dataBuffer, 2) >= samplesPerWindow  
-        preprocessedData = preprocessData(dataBuffer(:, 1:samplesPerWindow), Fs, filtOrder, minf, maxf); % データの前処理
-                
+    if size(dataBuffer, 2) >= samplesPerWindow        
+        preprocessedData = preprocessData(dataBuffer(:, 1:samplesPerWindow), Fs, sfiltOrder, minf, maxf); % データの前処理
+        analysisData = preprocessedData(:, end-Fs*2+1:end);
+        
         % 特徴量抽出
-        features = extractCSPFeatures(preprocessedData, cspFilters);
-        features = normalizeRealtimeFeatures(features, features_mean, features_std)';
+        features12 = extractCSPFeatures(analysisData, cspFilters12);
+        features12 = features12';
+        features23 = extractCSPFeatures(analysisData, cspFilters23);
+        features23 = features23';
+        features13 = extractCSPFeatures(analysisData, cspFilters13);
+        features13 = features13';
         
         % SVMモデルから予想を出力
-        [preLabel, preScore] = predict(svmMdl, features);
+        svm_output12 = predict(svmMdl12, features12);
+        svm_output23 = predict(svmMdl23, features23);
+        svm_output13 = predict(svmMdl13, features13);
         
-        % 閾値による決定
-        if preScore(1,1) >= threshold
-            svm_output = 1;  % 正のクラス（安静状態）
-        else
-            svm_output = 2;  % 負のクラス（発話イメージ状態）
+        % 出力
+        if svm_output23 == 2
+            if svm_output12 == 1
+                predictedClass = 1;
+            else
+                predictedClass = 2; % 2または3のクラス
+            end
+        end
+        
+        if svm_output23 == 3
+            if svm_output13 == 1
+                predictedClass = 1;
+            else
+                predictedClass = 3; % 2または3のクラス
+            end
         end
         
         % Unityへのデータ通信
-        disp(preScore(1,1));
-        disp(svm_output);
-        udpNumSender(svm_output);
+        disp(predictedClass);
+        udpNumSender(predictedClass);
          
         % データバッファの更新
         dataBuffer = dataBuffer(:, (stepSamples+1):end); % オーバーラップを保持
