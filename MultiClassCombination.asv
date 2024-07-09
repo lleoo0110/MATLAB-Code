@@ -33,36 +33,35 @@ end
 
 
 %%  パラメータ設定
-global isRunning Ch numFilter csvFilename
+disp('Now receiving data...');
+global isRunning Fs minf maxf nTrials Ch numFilter filtOrder labelName csvFilename singleTrials
 minf = 1;
 maxf = 30;
-Fs = 256;
-filtOrder = getOptimalFilterOrder(Fs, minf, maxf);
+filtOrder = 1500;
 isRunning = false;
+movieTimes = 10;
 overlap = 4;
-windowSize = 2; % データ抽出時間窓
-portNumber = 12354; % UDPポート番号
-numFilter = 7;
-K = 10;
-% stimulusStart = stimulusWithFeedbackStart; % 音声フィードバック有無切り替え
+
+% ラベル作成
+label = readmatrix('labels/-.csv');
+labelNum = size(label, 1);
+
+nTrials = movieTimes * labelNum * overlap;
+singleTrials = labelNum * overlap;
 
 % データセットの名前を指定
-name = 'testl'; % ここを変更
+name = 'test'; % ここを変更
 datasetName = [name '_dataset'];
 dataName = name;
 csvFilename = [name '_label.csv'];
-
-% SVMパラメータ設定
-params = struct();
-params.modelType = 'svm'; % 'svm' or 'ecoc'
-params.useOptimization = false;
-params.kernelFunctions = {'linear', 'rbf', 'polynomial'};
-params.kernelScale = [0.1, 1, 10];
-params.boxConstraint = [0.1, 1, 10, 100];
+labelName = 'stimulus';
 
 % EPOC X
+Fs = 256;
 Ch = {'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'}; % チャンネル
 selectedChannels = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]; % 'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'
+numFilter = 7;
+K=10;
 
 
 %% 脳波データ計測
@@ -208,17 +207,36 @@ for i = 1:6
         [X, features_mean, features_std] = normalizeFeatures(X);
         y = SVMLabels;
 
-        % 分類器作成
+        %% 分類器作成
         svmMdl = runSVMAnalysis(X, y, params, K, params.modelType, params.useOptimization, 'Classifier 1-2');
+
         
-        % 交差検証
-        CVSVMModel = crossval(svmMdl, 'KFold', K); 
+        
+        
+        
+        
+        
+        t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
+        svmMdl = fitcecoc(X, y, 'Learners', t);
+%         [preLabel, preScores] = predict(svmProbModel, X);
+%         classOrder = svmProbModel.ClassNames;
+
+        % 交差検証による精度評価
+        CVSVMModel = crossval(svmMdl, 'KFold', K);
         loss = kfoldLoss(CVSVMModel);
         meanAccuracy = 1 - loss;
+
+        % ブロッククロスバリデーション
+        % [meanAccuracy, stdAccuracy, accuracies, confMat, f1Score] = blockCrossvalidation(X, y, K);
         
         % 分類精度を行列に保存
         accuracyMatrix(i, j) = meanAccuracy;
         accuracyMatrix(j, i) = meanAccuracy;
+        
+        
+        
+        
+        
         
         % 分類精度を表示
         disp(['Class ', num2str(i), ' vs Class ', num2str(j), ': ', num2str(meanAccuracy * 100), '%']);

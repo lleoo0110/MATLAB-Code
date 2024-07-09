@@ -57,11 +57,12 @@ disp('Now receiving data...');
 global numFilter isRunning portNumber
 minf = 1;
 maxf = 30;
-filtOrder = getOptimalFilterOrder(Fs, minf, maxf);
+filtOrder = 1024;
 portNumber = 12354; % UDPポート番号
 numFilter = 7;
 K = 10;
-threshold = avgOptimalThresholds.accuracy; % 閾値の設定
+% threshold = avgOptimalThresholds.accuracy; % 閾値の設定
+threshold = 0.5;
 
 % EPOC X
 Fs = 256;
@@ -73,7 +74,7 @@ selectedChannels = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]; % 'AF3','
 % Ch = {'T7','T8'};
 % selectedChannels = [4, 5]; % T7, T8のデータを選択
 
-windowSize = 2; % ウィンドウサイズ（秒）
+windowSize = 15; % ウィンドウサイズ（秒）
 stepSize = 1; % ステップサイズ（秒）
 samplesPerWindow = windowSize * Fs; % ウィンドウ内のサンプル数
 stepSamples = stepSize * Fs; % ステップサイズに相当するサンプル数
@@ -99,9 +100,10 @@ while isRunning
     
     if size(dataBuffer, 2) >= samplesPerWindow  
         preprocessedData = preprocessData(dataBuffer(:, 1:samplesPerWindow), Fs, filtOrder, minf, maxf); % データの前処理
+        analysisData = preprocessedData(:, end-Fs*2+1:end);
                 
         % 特徴量抽出
-        features = extractCSPFeatures(preprocessedData, cspFilters);
+        features = extractCSPFeatures(analysisData, cspFilters);
         features = normalizeRealtimeFeatures(features, features_mean, features_std)';
         
         % SVMモデルから予想を出力

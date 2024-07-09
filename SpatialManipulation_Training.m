@@ -37,14 +37,15 @@ global isRunning Ch numFilter csvFilename  csvFilename2
 minf = 1;
 maxf = 30;
 Fs = 256;
-filtOrder = getOptimalFilterOrder(Fs, minf, maxf);
+filtOrder = 1024;
 isRunning = false;
 overlap = 4;
 windowSize = 2; % データ抽出時間窓
 portNumber = 12354; % UDPポート番号
 numFilter = 7;
 K = 10;
-% stimulusStart = stimulusWithFeedbackStart; % 音声フィードバック有無切り替え
+% stimulusStart = stimulusWithFeedbackStart; % 音声フィードバック有
+% stimulusStart = readmatrix(csvFilename); % 音声フィードバック無
 
 % データセットの名前を指定
 name = 'spatial'; % ここを変更
@@ -91,17 +92,16 @@ while ~isRunning
 end
 
 % LSLバッファのクリア
-% while ~isempty(inlet.pull_sample(0)) % 0秒のタイムアウトでpull_sampleを呼び出し、バッファが空になるまで繰り返す
-% end
+while ~isempty(inlet.pull_sample(0)) % 0秒のタイムアウトでpull_sampleを呼び出し、バッファが空になるまで繰り返す
+end
 
 % EEGデータ収集
 saveInterval = 60; % 保存間隔（秒）
 fileIndex = 1;
 lastSaveTime = tic;
 while isRunning
-%     [vec, ts] = inlet.pull_sample(); % データの受信
-%     vec = vec(:); % 1x19の行ベクトルを19x1の列ベクトルに変換
-    vec = randn(19, 1);
+    [vec, ts] = inlet.pull_sample(); % データの受信
+    vec = vec(:); % 1x19の行ベクトルを19x1の列ベクトルに変換
     eegData = [eegData vec];
     
     if udpSocket.BytesAvailable > 0
@@ -111,17 +111,15 @@ while isRunning
         str = char(receivedData');
 
         % 受信データに応じて処理を行う
-        if strcmp(str, 'Forward')
-            disp('Forward Start');
+        if strcmp(str, 'Neutral')
+            disp('Neutral Start');
             labelButtonCallback(1);
-        elseif strcmp(str, 'Backward')
-            disp('Backward Start');
+            labelButtonCallbackWithFeedback(1);
+        elseif strcmp(str, 'Forward')
+            disp('Forward Start');
             labelButtonCallback(2);
         elseif strcmp(str, 'ForwardWithFeedback')
-            disp('Forward Start');
-            labelButtonCallbackWithFeedback(1);
-        elseif strcmp(str, 'BackwardWithFeedback')
-            disp('Backward Start');
+            disp('Forward With Feedback Start');
             labelButtonCallbackWithFeedback(2);
         else
             disp(['Unknown command received: ', str]);

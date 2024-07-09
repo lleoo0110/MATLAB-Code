@@ -32,12 +32,12 @@ for k = 1:inf.channel_count()
 end
 
 
-%%  パラメータ設定
-global isRunning Ch numFilter csvFilename
+%% パラメータ設定
+global isRunning Ch numFilter csvFilename  csvFilename2
 minf = 1;
 maxf = 30;
 Fs = 256;
-filtOrder = getOptimalFilterOrder(Fs, minf, maxf);
+filtOrder = 1024;
 isRunning = false;
 overlap = 4;
 windowSize = 2; % データ抽出時間窓
@@ -45,16 +45,19 @@ portNumber = 12354; % UDPポート番号
 numFilter = 7;
 K = 10;
 % stimulusStart = stimulusWithFeedbackStart; % 音声フィードバック有無切り替え
+% stimulusStart = readmatrix(csvFilename);
+% stimulusWithFeedbackStart = readmatrix(csvFilename2);
 
 % データセットの名前を指定
-name = 'testl'; % ここを変更
+name = 'spatial'; % ここを変更
 datasetName = [name '_dataset'];
 dataName = name;
 csvFilename = [name '_label.csv'];
+csvFilename2 = [name '_labelWithFeedback.csv'];
 
 % SVMパラメータ設定
 params = struct();
-params.modelType = 'svm'; % 'svm' or 'ecoc'
+params.modelType = 'ecoc'; % 'svm' or 'ecoc'
 params.useOptimization = false;
 params.kernelFunctions = {'linear', 'rbf', 'polynomial'};
 params.kernelScale = [0.1, 1, 10];
@@ -66,12 +69,23 @@ selectedChannels = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]; % 'AF3','
 
 
 %% 脳波データ計測
-% GUIの作成と表
+disp('データ計測中...');
+
+% GUIの作成と表示
 createMovieStartGUI();
 
+% データ初期化
 eegData = [];
 preprocessedData = [];
 labels = [];
+stimulusStart = [];
+stimulusWithFeedbackStart = [];
+
+
+% UDPソケットを作成
+udpSocket = udp('127.0.0.1', 'LocalPort', portNumber);
+% 受信データがある場合に処理を行う    
+fopen(udpSocket);
 
 while ~isRunning
     % 待機時間
@@ -89,8 +103,28 @@ lastSaveTime = tic;
 while isRunning
     [vec, ts] = inlet.pull_sample(); % データの受信
     vec = vec(:); % 1x19の行ベクトルを19x1の列ベクトルに変換
-    selectedData = vec(selectedChannels);
-    eegData = [eegData selectedData];
+    eegData = [eegData vec];
+    
+    if udpSocket.BytesAvailable > 0
+        % データを受信
+        receivedData = fread(udpSocket, udpSocket.BytesAvailable, 'uint8');
+        % 受信データを文字列に変換
+        str = char(receivedData');
+
+        % 受信データに応じて処理を行う
+        if strcmp(str, 'Neutral')
+            disp('Neutral Start');
+            labelButtonCallback(1);
+            labelButtonCallbackWithFeedback(1);
+        elseif strcmp(str, 'Backward')
+            disp('Backward Start');
+            labelButtonCallback(2);
+        elseif strcmp(str, 'ForwardWithFeedback')
+            disp('Forward Start');
+            labelButtonCallbackWithFeedback(1);
+            disp(['Unknown command received: ', str]);
+        end
+    end
     
     elapsedTime = toc(lastSaveTime);
     if elapsedTime >= saveInterval
@@ -123,43 +157,70 @@ while true
         break;
     end
 end
-eegData = savedData;
+eegData = savedData; % EEGデータの保存
+stimulusStart = readmatrix(csvFilename);
+stimulusWithFeedbackStart = readmatrix(csvFilename2);
 
-% 取得した脳波データから解析
+% データセットを保存
+save(datasetName, 'eegData', 'stimulusStart', 'stimulusWithFeedbackStart');
+disp('データセットが保存されました。');
+
+% UDPソケットを閉じる
+fclose(udpSocket);
+delete(udpSocket);
+clear udpSocket;
+
+
+%% 取得した脳波データの前処理
 disp('データ解析中...しばらくお待ちください...');
 
-
-%%  データの前処理
-preprocessedData = preprocessData(eegData, filtOrder, minf, maxf);
+% データの前処理
+preprocessedData = preprocessData(eegData(selectedChannels, :), Fs, filtOrder, minf, maxf);
 
 % エポック化
-movieStart = readmatrix(csvFilename);
-for ii = 1:movieTimes
-    % 刺激開始時間
-    switch ii
-        case 1
-        st = movieStart(1,2);
-        case 2
-        st = movieStart(2,2);
-    end
-    
-    for jj = 1:labelNum
-        for kk = 1:length(Ch)
-            % 2秒間のデータを抽出
-            startIdx = round(Fs*((st+5)+10*(jj-1))) + 1;
-            endIdx = startIdx + Fs*2 - 1;
+% セクションで実行した時は，保存していたstimulusStart使うようにするため
+if ~exist('stimulusStart', 'var') || isempty(stimulusStart)
+    stimulusStart = readmatrix(csvFilename);
+end
 
-            % データ数増加
-            tt = 0;
-            for ll = 1:overlap
-                DataSet{singleTrials*(ii-1)+overlap*(jj-1)+ll, 1}(kk,:) = preprocessedData(kk,startIdx+round(tt*Fs):endIdx+round(tt*Fs)); % tt秒後のデータ
-                tt = tt + 1;
-            end
+% データセットの初期化
+nTrials = size(stimulusStart, 1);
+totalEpochs = nTrials * overlap;
+DataSet = cell(totalEpochs, 1);
+labels = zeros(totalEpochs, 1);
+
+epochIndex = 1;
+for ii = 1:nTrials
+    startIdx = round(Fs * stimulusStart(ii, 2)) + 1;
+    endIdx = startIdx + Fs * windowSize - 1;
+    
+    % エポック化
+    for jj = 1:overlap
+        shiftAmount = round((jj - 1) * Fs * 1);  % 1秒ずつ時間窓をずらす
+        epochStartIdx = startIdx + shiftAmount;
+        epochEndIdx = epochStartIdx + Fs * windowSize - 1;
+        
+        % データの範囲チェック
+        if epochEndIdx <= size(preprocessedData, 2)
+            DataSet{epochIndex} = preprocessedData(:, epochStartIdx:epochEndIdx);
+            labels(epochIndex) = stimulusStart(ii, 1);  % ラベルを保存
+            epochIndex = epochIndex + 1;
+        else
+            warning('エポック %d-%d がデータの範囲外です。スキップします。', ii, jj);
         end
     end
 end
 
+% 使用されなかったセルを削除
+DataSet = DataSet(1:epochIndex-1);
+labels = labels(1:epochIndex-1);
 
+% データの形状を確認
+disp(['エポック化されたデータセットの数: ', num2str(length(DataSet))]);
+disp(['各エポックのサイズ: ', num2str(size(DataSet{1}))]);
+
+
+% データセットを分割
 % ラベルの一覧を取得
 uniqueLabels = unique(labels);
 
@@ -172,69 +233,46 @@ for i = 1:length(uniqueLabels)
 end
 dataClass1 = labelData{uniqueLabels == 1};
 dataClass2 = labelData{uniqueLabels == 2};
-dataClass3 = labelData{uniqueLabels == 3};
-%  ...
 
 % ラベルの配列を作成
 labelClass1 = repmat(1, size(dataClass1, 1), 1);
 labelClass2 = repmat(2, size(dataClass2, 1), 1);
-labelClass3 = repmat(3, size(dataClass3, 1), 1);
-% ...
 
-%% データ保存
-save(datasetName, 'eegData', 'preprocessedData ', 'dataClass', 'movieStart');
-disp('データ解析完了しました');
+% データセットを保存
+save(datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'stimulusWithFeedbackStart');
+disp('データセットが更新されました。');
+
 
 
 %% 脳波データ解析
-% 全組み合わせの分類精度算出
-accuracyMatrix = zeros(6, 6);
-% 全てのクラスの組み合わせについてループ
-for i = 1:6
-    for j = i+1:6
-        % クラスデータとラベルを取得
-        dataClassA = eval(['dataClass', num2str(i)]);
-        dataClassB = eval(['dataClass', num2str(j)]);
-        labelClassA = repmat(1, size(dataClassA, 1), 1);
-        labelClassB = repmat(2, size(dataClassB, 1), 1);
-        
-        % CSP特徴抽出
-        [cspClassA, cspClassB, cspFiltersAB] = processCSPData2Class(dataClassA, dataClassB);
-        SVMDataSet = [cspClassA; cspClassB];
-        SVMLabels = [labelClassA; labelClassB];
-        
-        % SVMモデルの学習
-        X = SVMDataSet;
-        [X, features_mean, features_std] = normalizeFeatures(X);
-        y = SVMLabels;
+disp('機械学習解析中...しばらくお待ちください...');
 
-        % 分類器作成
-        svmMdl = runSVMAnalysis(X, y, params, K, params.modelType, params.useOptimization, 'Classifier 1-2');
-        
-        % 交差検証
-        CVSVMModel = crossval(svmMdl, 'KFold', K); 
-        loss = kfoldLoss(CVSVMModel);
-        meanAccuracy = 1 - loss;
-        
-        % 分類精度を行列に保存
-        accuracyMatrix(i, j) = meanAccuracy;
-        accuracyMatrix(j, i) = meanAccuracy;
-        
-        % 分類精度を表示
-        disp(['Class ', num2str(i), ' vs Class ', num2str(j), ': ', num2str(meanAccuracy * 100), '%']);
-        close('all');
-    end
-end
 
-% 分類精度行列を表示
-disp('Accuracy Matrix:');
-disp(accuracyMatrix);
+%% CSPデータセット作成
+[cspClass1, cspClass2, cspFilters] = processCSPData2Class(dataClass1, dataClass2);
+SVMDataSet = [cspClass1; cspClass2];
+SVMLabels = [labelClass1; labelClass2];
 
+% データセットを保存
+save(datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'stimulusWithFeedbackStart', 'SVMDataSet', 'SVMLabels', 'cspFilters');
+disp('データセットが更新されました。');
+
+
+%% 分類器作成
+X = SVMDataSet;
+[X, features_mean, features_std] = normalizeFeatures(X);
+y = SVMLabels;
+
+svmMdl = runSVMAnalysis(X, y, params, K, params.modelType, params.useOptimization, 'Classifier 1-2');
+
+% データセットを保存
+save(datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'stimulusWithFeedbackStart', 'SVMDataSet', 'SVMLabels', 'cspFilters', 'svmMdl');
+disp('データセットが保存されました。');
 
 
 %% ボタン構成
 function createMovieStartGUI()
-    global t csv_file label_name startButton stopButton labelButton csvFilename; % グローバル変数の宣言
+    global t csv_file csv_file2 startButton stopButton labelButton csvFilename csvFilename2;
     % GUIの作成と設定をここに記述
     fig = figure('Position', [100 100 300 200], 'MenuBar', 'none', 'ToolBar', 'none');
     
@@ -248,8 +286,8 @@ function createMovieStartGUI()
         'Position', [100 50 70 30], 'Callback', @labelButtonCallback, 'Enable', 'off');
     
     % 他の初期化コードをここに記述
-    label_name = 'stimulus';
     csv_file = fopen(csvFilename, 'w');
+    csv_file2 = fopen(csvFilename2, 'w');
     t = timer('TimerFcn', @(hObject, eventdata) timer_callback(hObject, eventdata), 'Period', 0.1, 'ExecutionMode', 'fixedRate');
 end
 
@@ -283,14 +321,32 @@ function stopButtonCallback(hObject, eventdata)
 end
 
 % 動画・再生ボタン
-function labelButtonCallback(hObject, eventdata)
-    global t csv_file labelName csvFilename; % グローバル変数の宣言
+function labelButtonCallback(label)
+    global t csv_file csvFilename markerData; 
     % ラベルボタンのコールバック関数の内容をここに記述
     current_time = toc - t.StartDelay; % 経過時間の計算
     disp(current_time);
-    fprintf(csv_file, '%s,%.3f\n', labelName, current_time);
+    fprintf(csv_file, '%d,%.3f\n', label, current_time);
     fclose(csv_file); % ファイルを閉じる
     csv_file = fopen(csvFilename, 'a'); % ファイルを追記モードで再度開く
+    
+    % マーカー送信
+%     outlet.push_sample(markerData);
+%     disp('Send marker has value: ');
+end
+
+function labelButtonCallbackWithFeedback(label)
+    global t csv_file2 csvFilename2 markerData; 
+    % ラベルボタンのコールバック関数の内容をここに記述
+    current_time = toc - t.StartDelay; % 経過時間の計算
+    disp(current_time);
+    fprintf(csv_file2, '%d,%.3f\n', label, current_time);
+    fclose(csv_file2); % ファイルを閉じる
+    csv_file2 = fopen(csvFilename2, 'a'); % ファイルを追記モードで再度開く
+    
+    % マーカー送信
+%     outlet.push_sample(markerData);
+%     disp('Send marker has value: ');
 end
 
 % タイマー呼び出し中処理
