@@ -1,0 +1,42 @@
+% データの準備（実際のデータで置き換えてください）
+X = randn(1000, 5);  % 特徴量
+Y = (sum(X, 2) > 0);  % ラベル
+
+% モデルの訓練
+svmModel = fitcsvm(X, Y, 'KernelFunction', 'rbf', 'Standardize', true);
+svmProbModel = fitPosterior(svmModel);
+
+% 予測確率の計算
+[~, probEstimates] = predict(svmProbModel, X);
+
+% 最適な閾値の計算
+[avgOptimalThresholds, avgAUC] = optimizeThresholds(Y, probEstimates, 10);
+
+% 結果の表示
+disp(['Average Optimal Threshold (Youden''s J): ', num2str(avgOptimalThresholds.youden)]);
+disp(['Average Optimal Threshold (Accuracy): ', num2str(avgOptimalThresholds.accuracy)]);
+disp(['Average Optimal Threshold (F1 Score): ', num2str(avgOptimalThresholds.f1)]);
+disp(['Average AUC: ', num2str(avgAUC)]);
+
+metrics = {'Youden''s J', 'Accuracy', 'F1 Score'};
+thresholds = [avgOptimalThresholds.youden, avgOptimalThresholds.accuracy, avgOptimalThresholds.f1];
+
+% 最終的な性能評価（全データセットに対して）
+svmModel = fitcsvm(X, Y, 'KernelFunction', 'rbf', 'Standardize', true);
+svmProbModel = fitPosterior(svmModel);
+[~, probEstimates] = predict(svmProbModel, X);
+
+for i = 1:length(metrics)
+    predictions = probEstimates(:,2) >= thresholds(i);
+    accuracy = sum(predictions == Y) / length(Y);
+    precision = sum(predictions & Y) / sum(predictions);
+    recall = sum(predictions & Y) / sum(Y);
+    f1 = 2 * (precision * recall) / (precision + recall);
+    
+    disp([metrics{i}, ' Threshold Performance:']);
+    disp(['  Accuracy: ', num2str(accuracy)]);
+    disp(['  Precision: ', num2str(precision)]);
+    disp(['  Recall: ', num2str(recall)]);
+    disp(['  F1 Score: ', num2str(f1)]);
+    disp(' ');
+end

@@ -61,7 +61,7 @@ filtOrder = getOptimalFilterOrder(Fs, minf, maxf);
 portNumber = 12354; % UDPポート番号
 numFilter = 7;
 K = 10;
-threshold = 0.5; % 閾値の設定
+threshold = avgOptimalThresholds.accuracy; % 閾値の設定
 
 % EPOC X
 Fs = 256;
@@ -125,8 +125,6 @@ while isRunning
     
     pause(0.0001);  % 応答性を保つための短い休止
 end
-
-
 
 
 function createSaveDataGUI()

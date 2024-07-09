@@ -60,7 +60,7 @@ maxf = 30;
 Fs = 256;
 filtOrder = getOptimalFilterOrder(Fs, minf, maxf);
 portNumber = 12354; % UDPポート番号
-threshold = 0.5; % 閾値の設定
+threshold = avgOptimalThresholds.accuracy; % 閾値の設定
 
 % EPOC X
 Ch = {'AF3','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4'}; % チャンネル
