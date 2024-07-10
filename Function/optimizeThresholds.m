@@ -13,7 +13,7 @@ function [avgOptimalThresholds, avgAUC] = optimizeThresholds(X, Y, numIterations
     
     for iter = 1:numIterations
         % データの分割 (8:2)
-        cv = cvpartition(Y, 'HoldOut', 0.2);
+        cv = cvpartition(Y, 'HoldOut', 0.2, 'Stratify', true);
         X_train = X(cv.training, :);
         Y_train = Y(cv.training);
         X_test = X(cv.test, :);
