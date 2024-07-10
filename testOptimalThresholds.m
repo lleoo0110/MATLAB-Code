@@ -1,41 +1,31 @@
-% データの準備
-% X = randn(1000, 5);  % 特徴量
-% Y = (sum(X, 2) > 0);  % ラベル
-
 X = SVMDataSet;
 y = SVMLabels;
 
-% 最適な閾値の計算
-[avgOptimalThresholds, avgAUC] = optimizeThresholds(X, y, 10);
+% yのデータタイプを確認
+fprintf('Original data type of y: %s\n', class(y));
 
-% 結果の表示
-disp(['Average Optimal Threshold (Youden''s J): ', num2str(avgOptimalThresholds.youden)]);
-disp(['Average Optimal Threshold (Accuracy): ', num2str(avgOptimalThresholds.accuracy)]);
-disp(['Average Optimal Threshold (F1 Score): ', num2str(avgOptimalThresholds.f1)]);
-disp(['Average AUC: ', num2str(avgAUC)]);
+% yを適切なデータタイプに変換
+y = uint8(y);
 
-metrics = {'Youden''s J', 'Accuracy', 'F1 Score'};
-thresholds = [avgOptimalThresholds.youden, avgOptimalThresholds.accuracy, avgOptimalThresholds.f1];
+fprintf('Converted data type of y: %s\n', class(y));
 
-% 全データセットでの最終的な性能評価
+% SVMモデルの学習
 svmModel = fitcsvm(X, y, 'KernelFunction', 'rbf', 'Standardize', true);
+% 確率推定モデルの学習
 svmProbModel = fitPosterior(svmModel);
+% テストデータに対する確率の予測
 [~, probEstimates] = predict(svmProbModel, X);
-
-for i = 1:length(metrics)
-    predictions = probEstimates(:,2) >= thresholds(i);
-    accuracy = sum(predictions == y) / length(y);
-    precision = sum(predictions & y) / sum(predictions);
-    recall = sum(predictions & y) / sum(y);
-    f1 = 2 * (precision * recall) / (precision + recall);
-    
-    disp([metrics{i}, ' Threshold Performance:']);
-    disp(['  Accuracy: ', num2str(accuracy)]);
-    disp(['  Precision: ', num2str(precision)]);
-    disp(['  Recall: ', num2str(recall)]);
-    disp(['  F1 Score: ', num2str(f1)]);
-    disp(' ');
-end
-
-
-close all;
+% 最適な確率閾値の計算
+[optimalThresholds, AUC] = calculateOptimalThresholds(y, probEstimates);
+% 結果の表示
+fprintf('Optimal Threshold (Accuracy): %.3f\n', optimalThresholds.accuracy);
+fprintf('Optimal Threshold (Youden''s J): %.3f\n', optimalThresholds.youden);
+fprintf('Optimal Threshold (F1 Score): %.3f\n', optimalThresholds.f1);
+fprintf('AUC: %.3f\n', AUC);
+% 閾値を使用した予測
+predictions = probEstimates(:,1) >= optimalThresholds.accuracy;
+predictions = uint8(predictions);  % 論理値を uint8 に変換
+% 混同行列の計算
+confusionMatrix = confusionmat(y, predictions);
+fprintf('Confusion Matrix:\n');
+disp(confusionMatrix)
