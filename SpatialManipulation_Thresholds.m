@@ -33,7 +33,7 @@ end
 
 
 %% パラメータ設定
-global isRunning Ch numFilter csvFilename  csvFilename2
+global isRunning Ch numFilter csvFilename
 minf = 1;
 maxf = 30;
 Fs = 256;
@@ -44,20 +44,16 @@ windowSize = 2; % データ抽出時間窓
 portNumber = 12354; % UDPポート番号
 numFilter = 7;
 K = 10;
-% stimulusStart = stimulusWithFeedbackStart; % 音声フィードバック有無切り替え
-% stimulusStart = readmatrix(csvFilename);
-% stimulusWithFeedbackStart = readmatrix(csvFilename2);
 
 % データセットの名前を指定
 name = 'spatial'; % ここを変更
-datasetName = [name '_dataset'];
-dataName = name;
-csvFilename = [name '_label.csv'];
-csvFilename2 = [name '_labelWithFeedback.csv'];
+datasetName = [name '_thresholds_dataset'];
+dataName = [name '_thresholds'];
+csvFilename = [name '_thresholds_label.csv'];
 
 % SVMパラメータ設定
 params = struct();
-params.modelType = 'ecoc'; % 'svm' or 'ecoc'
+params.modelType = 'svm'; % 'svm' or 'ecoc'
 params.useOptimization = false;
 params.kernelFunctions = {'linear', 'rbf', 'polynomial'};
 params.kernelScale = [0.1, 1, 10];
@@ -116,12 +112,10 @@ while isRunning
             disp('Neutral Start');
             labelButtonCallback(1);
             labelButtonCallbackWithFeedback(1);
-        elseif strcmp(str, 'Backward')
-            disp('Backward Start');
-            labelButtonCallback(2);
-        elseif strcmp(str, 'ForwardWithFeedback')
+        elseif strcmp(str, 'Forward')
             disp('Forward Start');
-            labelButtonCallbackWithFeedback(1);
+            labelButtonCallback(2);
+        else
             disp(['Unknown command received: ', str]);
         end
     end
@@ -159,10 +153,9 @@ while true
 end
 eegData = savedData; % EEGデータの保存
 stimulusStart = readmatrix(csvFilename);
-stimulusWithFeedbackStart = readmatrix(csvFilename2);
 
 % データセットを保存
-save(datasetName, 'eegData', 'stimulusStart', 'stimulusWithFeedbackStart');
+save(datasetName, 'eegData', 'stimulusStart');
 disp('データセットが保存されました。');
 
 % UDPソケットを閉じる
@@ -188,6 +181,8 @@ nTrials = size(stimulusStart, 1);
 totalEpochs = nTrials * overlap;
 DataSet = cell(totalEpochs, 1);
 labels = zeros(totalEpochs, 1);
+test1 = [];
+test2 = [];
 
 epochIndex = 1;
 for ii = 1:nTrials
@@ -231,12 +226,9 @@ labelData = cell(length(uniqueLabels), 1);
 for i = 1:length(uniqueLabels)
     labelData{i} = DataSet(labels == uniqueLabels(i), :);
 end
-dataClass1 = labelData{uniqueLabels == 1};
-dataClass2 = labelData{uniqueLabels == 2};
+test1 = labelData{uniqueLabels == 1};
+test2 = labelData{uniqueLabels == 2};
 
-% ラベルの配列を作成
-labelClass1 = repmat(1, size(dataClass1, 1), 1);
-labelClass2 = repmat(2, size(dataClass2, 1), 1);
 
 % データセットを保存
 save(datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'stimulusWithFeedbackStart');
@@ -244,30 +236,44 @@ disp('データセットが更新されました。');
 
 
 
-%% 脳波データ解析
-disp('機械学習解析中...しばらくお待ちください...');
+%% 確率閾値計算
+disp('確率閾値計算中...しばらくお待ちください...');
 
+% test1とtest2のサイズを取得
+[numTrials, ~] = size(test1);
 
-%% CSPデータセット作成
-[cspClass1, cspClass2, cspFilters] = processCSPData2Class(dataClass1, dataClass2);
-SVMDataSet = [cspClass1; cspClass2];
-SVMLabels = [labelClass1; labelClass2];
+% 初期化
+neutralScores = zeros(numTrials, 1);
+imageryScores = zeros(numTrials, 1);
 
-% データセットを保存
-save(datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'stimulusWithFeedbackStart', 'SVMDataSet', 'SVMLabels', 'cspFilters');
-disp('データセットが更新されました。');
+for ii = 1:numTrials
+    % Neutral条件の特徴量抽出と正規化
+    featuresNeutral = extractCSPFeatures(test1{ii,1}, cspFilters);
+    featuresNeutral = normalizeRealtimeFeatures(featuresNeutral, features_mean, features_std)';
+    
+    % Neutral条件の予測
+    [~, neutralScore] = predict(svmMdl, featuresNeutral);
+    neutralScores(ii) = neutralScore(1);  % クラス1の確率を取得
+    
+    % Imagery条件の特徴量抽出と正規化
+    featuresImagery = extractCSPFeatures(test2{ii,1}, cspFilters);
+    featuresImagery = normalizeRealtimeFeatures(featuresImagery, features_mean, features_std)';
+    
+    % Imagery条件の予測
+    [~, imageryScore] = predict(svmMdl, featuresImagery);
+    imageryScores(ii) = imageryScore(1);  % クラス1の確率を取得
+end
 
+% 確率閾値の平均を計算
+neutralThreshold = mean(neutralScores);
+imageryThreshold = mean(imageryScores);
 
-%% 分類器作成
-X = SVMDataSet;
-[X, features_mean, features_std] = normalizeFeatures(X);
-y = SVMLabels;
+% 閾値の平均を計算
+realTimeThreshold = (neutralThreshold + imageryThreshold) / 2;
 
-svmMdl = runSVMAnalysis(X, y, params, K, params.modelType, params.useOptimization, 'Classifier 1-2');
-
-% データセットを保存
-save(datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'stimulusWithFeedbackStart', 'SVMDataSet', 'SVMLabels', 'cspFilters', 'svmMdl');
-disp('データセットが保存されました。');
+fprintf('Neutral Threshold: %.3f\n', neutralThreshold);
+fprintf('Imagery Threshold: %.3f\n', imageryThreshold);
+fprintf('Average Threshold: %.3f\n', threshold);
 
 
 %% ボタン構成
@@ -329,25 +335,8 @@ function labelButtonCallback(label)
     fprintf(csv_file, '%d,%.3f\n', label, current_time);
     fclose(csv_file); % ファイルを閉じる
     csv_file = fopen(csvFilename, 'a'); % ファイルを追記モードで再度開く
-    
-    % マーカー送信
-%     outlet.push_sample(markerData);
-%     disp('Send marker has value: ');
 end
 
-function labelButtonCallbackWithFeedback(label)
-    global t csv_file2 csvFilename2 markerData; 
-    % ラベルボタンのコールバック関数の内容をここに記述
-    current_time = toc - t.StartDelay; % 経過時間の計算
-    disp(current_time);
-    fprintf(csv_file2, '%d,%.3f\n', label, current_time);
-    fclose(csv_file2); % ファイルを閉じる
-    csv_file2 = fopen(csvFilename2, 'a'); % ファイルを追記モードで再度開く
-    
-    % マーカー送信
-%     outlet.push_sample(markerData);
-%     disp('Send marker has value: ');
-end
 
 % タイマー呼び出し中処理
 function timer_callback(hObject, eventdata)

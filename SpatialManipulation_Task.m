@@ -61,9 +61,8 @@ filtOrder = 1024;
 portNumber = 12354; % UDPポート番号
 numFilter = 7;
 K = 10;
-% threshold = avgOptimalThresholds.accuracy; % 閾値の設定
-threshold = 0.5;
-
+threshold = realTimeThreshold; % 閾値の設定
+% threshold = 0.5;
 % EPOC X
 Fs = 256;
 Ch = {'AF3','F7','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','F8','AF4'}; % チャンネル
