@@ -111,7 +111,7 @@ while isRunning
         if strcmp(str, 'Neutral')
             disp('Neutral Start');
             labelButtonCallback(1);
-            labelButtonCallbackWithFeedback(1);
+            %labelButtonCallbackWithFeedback(1);
         elseif strcmp(str, 'Forward')
             disp('Forward Start');
             labelButtonCallback(2);
@@ -273,7 +273,7 @@ realTimeThreshold = (neutralThreshold + imageryThreshold) / 2;
 
 fprintf('Neutral Threshold: %.3f\n', neutralThreshold);
 fprintf('Imagery Threshold: %.3f\n', imageryThreshold);
-fprintf('Average Threshold: %.3f\n', threshold);
+fprintf('Average Threshold: %.3f\n', realTimeThreshold);
 
 
 %% ボタン構成
@@ -336,7 +336,6 @@ function labelButtonCallback(label)
     fclose(csv_file); % ファイルを閉じる
     csv_file = fopen(csvFilename, 'a'); % ファイルを追記モードで再度開く
 end
-
 
 % タイマー呼び出し中処理
 function timer_callback(hObject, eventdata)
