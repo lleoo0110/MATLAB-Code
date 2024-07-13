@@ -46,7 +46,7 @@ numFilter = 6;
 K = 10;
 
 % データセットの名前を指定
-name = 'Locomotion'; % ここを変更
+name = 'Shohei_OI'; % ここを変更
 datasetName = [name '_dataset'];
 dataName = name;
 csvFilename = [name '_label.csv'];
@@ -55,7 +55,7 @@ labelName = 'stimulus';
 % SVMパラメータ設定
 params = struct();
 params.modelType = 'svm'; % 'svm' or 'ecoc'
-params.useOptimization = true;
+params.useOptimization = false;
 params.kernelFunctions = {'linear', 'rbf', 'polynomial'};
 params.kernelScale = [0.1, 1, 10];
 params.boxConstraint = [0.1, 1, 10, 100];
@@ -251,7 +251,7 @@ disp('データセットが更新されました。');
 
 %% 分類器作成
 X = SVMDataSet;
-[X, features_mean, features_std] = normalizeFeatures(X);
+% [X, features_mean, features_std] = normalizeFeatures(X);
 y = SVMLabels;
 
 svmMdl = runSVMAnalysis(X, y, params, K, params.modelType, params.useOptimization, 'Classifier 1-2');
