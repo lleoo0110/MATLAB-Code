@@ -260,7 +260,7 @@ disp('データセットが更新されました。');
 
 %% 分類器作成
 X = SVMDataSet;
-[X, features_mean, features_std] = normalizeFeatures(X);
+% [X, features_mean, features_std] = normalizeFeatures(X);
 y = SVMLabels;
 
 svmMdl = runSVMAnalysis(X, y, params, K, params.modelType, params.useOptimization, 'Classifier 1-2');
