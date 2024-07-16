@@ -52,7 +52,7 @@ for k = 1:inf.channel_count()
 end
 
 
-%% データ受信と処理
+% データ受信と処理
 disp('Now receiving data...');
 global numFilter isRunning portNumber
 minf = 1;
@@ -60,7 +60,8 @@ maxf = 30;
 Fs = 256;
 filtOrder = 1024;
 portNumber = 12354; % UDPポート番号
-threshold = realTimeThreshold; % 閾値の設定
+% threshold = avgOptimalThresholds.accuracy; % 閾値の設定
+threshold = 0.5;
 
 % EPOC X
 Ch = {'AF3','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4'}; % チャンネル
@@ -102,7 +103,8 @@ while isRunning
         analysisData = preprocessedData(:, end-Fs*2+1:end);
                 
         % 特徴量抽出
-        features = extractCSPFeatures(analysisData, cspFilters)';
+        features = extractCSPFeatures(analysisData, cspFilters);
+        features = normalizeRealtimeFeatures(features, features_mean, features_std)';
         
         % SVMモデルから予想を出力
         [preLabel, preScore] = predict(svmMdl, features);

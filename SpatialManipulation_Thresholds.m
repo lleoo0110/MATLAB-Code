@@ -111,6 +111,7 @@ while isRunning
         if strcmp(str, 'Neutral')
             disp('Neutral Start');
             labelButtonCallback(1);
+%             labelButtonCallbackWithFeedback(1);
         elseif strcmp(str, 'Forward')
             disp('Forward Start');
             labelButtonCallback(2);
@@ -239,7 +240,7 @@ disp('データセットが更新されました。');
 disp('確率閾値計算中...しばらくお待ちください...');
 
 % test1とtest2のサイズを取得
-[numTrials, ~] = size(test2);
+[numTrials, ~] = size(test1);
 
 % 初期化
 neutralScores = zeros(numTrials, 1);
@@ -247,15 +248,15 @@ imageryScores = zeros(numTrials, 1);
 
 for ii = 1:numTrials
     % Neutral条件の特徴量抽出と正規化
-    featuresNeutral = extractCSPFeatures(test1{ii,1}, cspFilters)';
-    % featuresNeutral = normalizeRealtimeFeatures(featuresNeutral, features_mean, features_std)';
+    featuresNeutral = extractCSPFeatures(test1{ii,1}, cspFilters);
+    featuresNeutral = normalizeRealtimeFeatures(featuresNeutral, features_mean, features_std)';
     
     % Neutral条件の予測
     [~, neutralScore] = predict(svmMdl, featuresNeutral);
     neutralScores(ii) = neutralScore(1);  % クラス1の確率を取得
     
     % Imagery条件の特徴量抽出と正規化
-    featuresImagery = extractCSPFeatures(test2{ii,1}, cspFilters)';
+    featuresImagery = extractCSPFeatures(test2{ii,1}, cspFilters);
     featuresImagery = normalizeRealtimeFeatures(featuresImagery, features_mean, features_std)';
     
     % Imagery条件の予測
