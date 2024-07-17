@@ -34,7 +34,7 @@ end
 
 %% パラメータ設定
 global isRunning Ch numFilter labelName csvFilename
-minf = 1;
+minf = 13;
 maxf = 30;
 Fs = 256;
 filtOrder = 1024;
@@ -43,10 +43,10 @@ overlap = 4;
 windowSize = 2; % データ抽出時間窓
 portNumber = 12354; % UDPポート番号
 numFilter = 6;
-K = 10;
+K = 5;
 
 % データセットの名前を指定
-name = 'Locomotion'; % ここを変更
+name = 'iida_OI'; % ここを変更
 datasetName = [name '_dataset'];
 dataName = name;
 csvFilename = [name '_label.csv'];
@@ -54,11 +54,20 @@ labelName = 'stimulus';
 
 % SVMパラメータ設定
 params = struct();
-params.modelType = 'svm'; % 'svm' or 'ecoc'
-params.useOptimization = true;
+params.modelType = 'ecoc'; % 'svm' or 'ecoc'
+params.useOptimization = false;
 params.kernelFunctions = {'linear', 'rbf', 'polynomial'};
 params.kernelScale = [0.1, 1, 10];
 params.boxConstraint = [0.1, 1, 10, 100];
+
+% % SVMパラメータ設定
+% params.model = struct(...
+%     'modelType', 'svm', ... % 'svm' or 'ecoc'
+%     'useOptimization', true, ...
+%     'kernelFunctions', {{'linear', 'rbf', 'polynomial'}}, ...
+%     'kernelScale', [0.1, 1, 10], ...
+%     'boxConstraint', [0.1, 1, 10, 100] ...
+% );
 
 % EPOC X
 Ch = {'AF3','F3','FC5','T7','P7','O1','O2','P8','T8','FC6','F4','AF4'}; % チャンネル
@@ -169,7 +178,6 @@ disp('データ解析中...しばらくお待ちください...');
 preprocessedData = preprocessData(eegData(selectedChannels, :), Fs, filtOrder, minf, maxf);
 
 % エポック化
-% セクションで実行した時は，保存していたstimulusStart使うようにするため
 if ~exist('stimulusStart', 'var') || isempty(stimulusStart)
     stimulusStart = readmatrix(csvFilename);
 end
@@ -251,7 +259,6 @@ disp('データセットが更新されました。');
 
 %% 分類器作成
 X = SVMDataSet;
-[X, features_mean, features_std] = normalizeFeatures(X);
 y = SVMLabels;
 
 svmMdl = runSVMAnalysis(X, y, params, K, params.modelType, params.useOptimization, 'Classifier 1-2');
