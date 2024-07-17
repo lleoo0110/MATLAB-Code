@@ -55,7 +55,7 @@ params.stim = struct(...
     'videoDuration', 5 * 60, ... % 動画の全体長（秒）
     'initialDelay', 5, ... % 動画開始から最初の刺激までの遅延（秒）
     'cycleDuration', 10, ... % 1サイクルの長さ（秒）
-    'labelName', 'Experiment_Shiori', ...
+    'labelName', 'Experiment_', ...
     'portNumber', 12354 ...
 );
 
@@ -186,7 +186,7 @@ clear udpSocket;
 disp('データ解析中...しばらくお待ちください...');
 
 % データの前処理
-preprocessedData = preprocessData(eegData(params.epocx.selectedparams.epocx.selectedchannels, :), params.eeg.Fs, params.eeg.filtOrder, params.eeg.minf, params.eeg.maxf);
+preprocessedData = preprocessData(eegData(params.epocx.selectedChannels, :), params.eeg.Fs, params.eeg.filtOrder, params.eeg.minf, params.eeg.maxf);
 
 % ラベル作成
 if ~exist('stimulusStart', 'var') || isempty(stimulusStart)
@@ -280,8 +280,8 @@ disp('データセットが更新されました。');
 %% 脳波データ解析
 % 全組み合わせの分類精度算出
 accuracyMatrix = zeros(length(uniqueLabels), length(uniqueLabels));
-for i = 1:7
-    for j = i+1:7
+for i = 1:(length(uniqueLabels))
+    for j = i+1:(length(uniqueLabels))
         dataClassA = dataClass{i};
         dataClassB = dataClass{j};
         labelClassA = labelClass{i};
@@ -366,11 +366,12 @@ function stopButtonCallback(hObject, eventdata)
 end
 
 % 動画・再生ボタン
-function labelButtonCallback(label)
+function labelButtonCallback(hObject, eventdata)
     global t csv_file csvFilename; % グローバル変数の宣言
     % ラベルボタンのコールバック関数の内容をここに記述
     current_time = toc - t.StartDelay; % 経過時間の計算
     disp(current_time);
+    label = 0;
     fprintf(csv_file, '%d,%.3f\n', label, current_time);
     fclose(csv_file); % ファイルを閉じる
     csv_file = fopen(csvFilename, 'a'); % ファイルを追記モードで再度開く
