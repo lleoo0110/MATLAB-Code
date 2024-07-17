@@ -33,7 +33,7 @@ end
 
 
 %% パラメータ設定
-global isRunning Ch numFilter csvFilename  csvFilename2
+global isRunning Ch numFilter csvFilename
 minf = 1;
 maxf = 30;
 Fs = 256;
@@ -44,11 +44,9 @@ windowSize = 2; % データ抽出時間窓
 portNumber = 12354; % UDPポート番号
 numFilter = 7;
 K = 10;
-% stimulusStart = stimulusWithFeedbackStart; % 音声フィードバック有
-% stimulusStart = readmatrix(csvFilename); % 音声フィードバック無
 
 % データセットの名前を指定
-name = 'spatial'; % ここを変更
+name = 'takerun_OI'; % ここを変更
 datasetName = [name '_thresholds_dataset'];
 dataName = [name '_thresholds'];
 csvFilename = [name '_thresholds_label.csv'];
@@ -108,14 +106,12 @@ while isRunning
         receivedData = fread(udpSocket, udpSocket.BytesAvailable, 'uint8');
         % 受信データを文字列に変換
         str = char(receivedData');
-
-        % 受信データに応じて処理を行う
+        
         if strcmp(str, 'Neutral')
             disp('Neutral Start');
             labelButtonCallback(1);
-            labelButtonCallbackWithFeedback(1);
-        elseif strcmp(str, 'Forward')
-            disp('Forward Start');
+        elseif strcmp(str, 'WalkImagery')
+            disp('WalkIMagery Start');
             labelButtonCallback(2);
         else
             disp(['Unknown command received: ', str]);
@@ -183,6 +179,8 @@ nTrials = size(stimulusStart, 1);
 totalEpochs = nTrials * overlap;
 DataSet = cell(totalEpochs, 1);
 labels = zeros(totalEpochs, 1);
+test1 = [];
+test2 = [];
 
 epochIndex = 1;
 for ii = 1:nTrials
@@ -226,8 +224,8 @@ labelData = cell(length(uniqueLabels), 1);
 for i = 1:length(uniqueLabels)
     labelData{i} = DataSet(labels == uniqueLabels(i), :);
 end
-dataClass1 = labelData{uniqueLabels == 1};
-dataClass2 = labelData{uniqueLabels == 2};
+test1 = labelData{uniqueLabels == 1};
+test2 = labelData{uniqueLabels == 2};
 
 
 % データセットを保存
@@ -239,13 +237,40 @@ disp('データセットが更新されました。');
 %% 確率閾値計算
 disp('確率閾値計算中...しばらくお待ちください...');
 
-% 安静状態の確率
-featuresNeutral = extractCSPFeatures(dataClass1, cspFilters);
-featuresNeutral = normalizeRealtimeFeatures(featuresImage, features_mean, features_std)';
+% test1とtest2のサイズを取得
+[numTrials, ~] = size(test2);
 
-% 想起状態の確率
-features = extractCSPFeatures(dataClass2, cspFilters);
-features = normalizeRealtimeFeatures(features, features_mean, features_std)';
+% 初期化
+neutralScores = zeros(numTrials, 1);
+imageryScores = zeros(numTrials, 1);
+
+for ii = 1:numTrials
+    % Neutral条件の特徴量抽出と正規化
+    featuresNeutral = extractCSPFeatures(test1{ii,1}, cspFilters)';
+    
+    % Neutral条件の予測
+    [~, neutralScore] = predict(svmMdl, featuresNeutral);
+    neutralScores(ii) = neutralScore(1);  % クラス1の確率を取得
+    
+    % Imagery条件の特徴量抽出と正規化
+    featuresImagery = extractCSPFeatures(test2{ii,1}, cspFilters)';
+    
+    % Imagery条件の予測
+    [~, imageryScore] = predict(svmMdl, featuresImagery);
+    imageryScores(ii) = imageryScore(1);  % クラス1の確率を取得
+end
+
+% 確率閾値の平均を計算
+neutralThreshold = mean(neutralScores);
+imageryThreshold = mean(imageryScores);
+
+% 閾値の平均を計算
+realTimeThreshold = (neutralThreshold + imageryThreshold) / 2;
+
+fprintf('Neutral Threshold: %.3f\n', neutralThreshold);
+fprintf('Imagery Threshold: %.3f\n', imageryThreshold);
+fprintf('Average Threshold: %.3f\n', realTimeThreshold);
+
 
 %% ボタン構成
 function createMovieStartGUI()
@@ -307,7 +332,6 @@ function labelButtonCallback(label)
     fclose(csv_file); % ファイルを閉じる
     csv_file = fopen(csvFilename, 'a'); % ファイルを追記モードで再度開く
 end
-
 
 % タイマー呼び出し中処理
 function timer_callback(hObject, eventdata)
