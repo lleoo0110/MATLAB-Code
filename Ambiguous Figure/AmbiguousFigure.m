@@ -44,24 +44,15 @@ params.eeg = struct(...
     'maxf', 30, ...
     'Fs', 256, ...
     'filtOrder', 1024, ...
-    'overlap', 4, ...
+    'overlap', 1, ...
     'windowSize', 2, ...
     'numFilter', 7, ...
     'K', 5 ...
 );
 
-% 動画刺激パラメータ
-params.stim = struct(...
-    'videoDuration', 5 * 60, ... % 動画の全体長（秒）
-    'initialDelay', 5, ... % 動画開始から最初の刺激までの遅延（秒）
-    'cycleDuration', 10, ... % 1サイクルの長さ（秒）
-    'labelName', 'Experiment_', ...
-    'portNumber', 12354 ...
-);
-
 % 名前設定パラメータ
 params.experiment = struct(...
-    'name', 'colors' ... % ここを変更
+    'name', 'reona' ... % ここを変更
 );
 params.experiment.datasetName = [params.experiment.name '_dataset'];
 params.experiment.dataName = params.experiment.name;
@@ -131,9 +122,12 @@ while isRunning
         str = char(receivedData');
 
         % 受信データに応じて処理を行う
-        if strcmp(str, 'Start')
-            disp('Movie Start');
-            labelButtonCallback(0);
+        if strcmp(str, '1')
+            disp('1');
+            labelButtonCallback(1);
+        elseif strcmp(str, '2')
+            disp('2');
+            labelButtonCallback(2);
         else
             disp(['Unknown command received: ', str]);
         end
@@ -190,33 +184,9 @@ preprocessedData = preprocessData(eegData(params.epocx.selectedChannels, :), par
 
 % ラベル作成
 if ~exist('stimulusStart', 'var') || isempty(stimulusStart)
-    % CSVファイルからデータを読み込む
-    videoStarts = readmatrix(csvFilename);
-    labels = readmatrix(params.stim.labelName);
-
-    % videoStartsの2列目（時間データ）のみを抽出
-    videoStarts = videoStarts(:, 2);
-
-    % 各動画の刺激回数を計算
-    stimulusVideo = floor(params.stim.videoDuration / params.stim.cycleDuration);
-
-    % 刺激開始タイミングを格納する配列を初期化
-    stimulusStart = [];
-
-    % 各動画に対して処理を行う
-    for i = 1:length(videoStarts)
-        videoStart = videoStarts(i);
-
-        % 現在の動画の刺激タイミングとラベルを計算
-        for j = 1:stimulusVideo
-            current_time = videoStart + params.stim.initialDelay + (j-1) * params.stim.cycleDuration;
-            label = labels(mod(j-1, length(labels)) + 1);
-            stimulusStart = [stimulusStart; label, current_time];
-        end
-    end
+    stimulusStart = readmatrix(csvFilename);
 end
 
-% エポック化
 % データセットの初期化
 nTrials = size(stimulusStart, 1);
 totalEpochs = nTrials * params.eeg.overlap;
@@ -225,7 +195,7 @@ labels = zeros(totalEpochs, 1);
 
 epochIndex = 1;
 for ii = 1:nTrials
-    startIdx = round(params.eeg.Fs * stimulusStart(ii, 2)) + 1;
+    startIdx = round(params.eeg.Fs * (stimulusStart(ii, 2)-1)) + 1;
     endIdx = startIdx + params.eeg.Fs * params.eeg.windowSize - 1;
     
     % エポック化
@@ -277,59 +247,48 @@ save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStar
 disp('データセットが更新されました。');
 
 
-%% 脳波データ解析
-% 全組み合わせの分類精度算出
-accuracyMatrix = zeros(length(uniqueLabels), length(uniqueLabels));
-for i = 1:(length(uniqueLabels))
-    for j = i+1:(length(uniqueLabels))
-        dataClassA = dataClass{i};
-        dataClassB = dataClass{j};
-        labelClassA = labelClass{i};
-        labelClassB = labelClass{j};
-                
-        % CSP特徴抽出
-        [cspClassA, cspClassB, cspFiltersAB] = processCSPData2Class(dataClassA, dataClassB);
-        allCSPFeatures = [cspClassA; cspClassB];
-        allLabels = [labelClassA; labelClassB];
-        
-        numClasses = 2;  % クラスAとクラスBの2クラス
-        [SVMDataSet, SVMLabels] = reorderData(allCSPFeatures, allLabels, numClasses);
-        
-        % 機械学習部分
-        X = SVMDataSet;
-        y = SVMLabels;
-        
-        [~, meanAccuracy] = runSVMAnalysis(X, y, params, K, params.modelType, params.useOptimization, 'Classifier 1-2');
-    
-        accuracyMatrix(i, j) = meanAccuracy;
-        accuracyMatrix(j, i) = meanAccuracy;
-        
-        close('all');
-    end
-end
+%% CSPデータセット作成
+[cspClass1, cspClass2, cspFilters] = processCSPData2Class(dataClass1, dataClass2);
+SVMDataSet = [cspClass1; cspClass2];
+SVMLabels = [labelClass1; labelClass2];
 
-disp('Accuracy Matrix:');
-disp(accuracyMatrix);
+% データセットを保存
+save(datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'SVMDataSet', 'SVMLabels', 'cspFilters');
+disp('データセットが更新されました。');
 
-save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'accuracyMatrix');
+
+%% 分類器作成
+X = SVMDataSet;
+y = SVMLabels;
+
+[svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, classifierLabel);
+
+save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'SVMDataSet', 'SVMLabels', 'cspFilters', 'svmMdl');
 disp('Data saved successfully.');
 
 
 %% ボタン構成
 function createMovieStartGUI()
-    global t csv_file label_name startButton stopButton labelButton csvFilename; % グローバル変数の宣言
+    global t csv_file label_name startButton stopButton labelButton csvFilename button1 button2; % グローバル変数に button1 と button2 を追加
     % GUIの作成と設定をここに記述
-    fig = figure('Position', [100 100 300 200], 'MenuBar', 'none', 'ToolBar', 'none');
-    
+    fig = figure('Position', [100 100 300 250], 'MenuBar', 'none', 'ToolBar', 'none'); % ウィンドウの高さを増加
+
     startButton = uicontrol('Style', 'pushbutton', 'String', 'Start', ...
-        'Position', [50 100 70 30], 'Callback', @startButtonCallback);
-    
+        'Position', [50 200 70 30], 'Callback', @startButtonCallback);
+
     stopButton = uicontrol('Style', 'pushbutton', 'String', 'Stop', ...
-        'Position', [150 100 70 30], 'Callback', @stopButtonCallback, 'Enable', 'off');
-    
+        'Position', [150 200 70 30], 'Callback', @stopButtonCallback, 'Enable', 'off');
+
     labelButton = uicontrol('Style', 'pushbutton', 'String', 'Label', ...
-        'Position', [100 50 70 30], 'Callback', @labelButtonCallback, 'Enable', 'off');
-    
+        'Position', [100 150 70 30], 'Callback', @labelButtonCallback, 'Enable', 'off');
+
+    % 新しいボタンを追加
+    button1 = uicontrol('Style', 'pushbutton', 'String', '1', ...
+        'Position', [50 100 70 30], 'Callback', @(hObject,eventdata)labelButtonCallback(hObject,eventdata,1), 'Enable', 'off');
+
+    button2 = uicontrol('Style', 'pushbutton', 'String', '2', ...
+        'Position', [150 100 70 30], 'Callback', @(hObject,eventdata)labelButtonCallback(hObject,eventdata,2), 'Enable', 'off');
+
     % 他の初期化コードをここに記述
     label_name = 'stimulus';
     csv_file = fopen(csvFilename, 'w');
@@ -338,8 +297,8 @@ end
 
 % 脳波データ記録開始ボタン
 function startButtonCallback(hObject, eventdata)
-    global isRunning t startButton stopButton labelButton; % グローバル変数の宣言
-    
+    global isRunning t startButton stopButton labelButton button1 button2; % グローバル変数に button1 と button2 を追加
+
     % 実行中
     disp('データ収集中...指示に従ってください...');
     tic; % タイマーの開始時間を記録
@@ -347,37 +306,45 @@ function startButtonCallback(hObject, eventdata)
     startButton.Enable = 'off';
     stopButton.Enable = 'on';
     labelButton.Enable = 'on';
+    button1.Enable = 'on';
+    button2.Enable = 'on'; 
     isRunning = true;
 end
 
 % 脳波データ記録停止ボタン
 function stopButtonCallback(hObject, eventdata)
-    global isRunning t startButton stopButton labelButton; % グローバル変数の宣言
-    
+    global isRunning t startButton stopButton labelButton button1 button2; % グローバル変数に button1 と button2 を追加
+
     isRunning = false;
     % ストップボタンのコールバック関数の内容をここに記述
     stop(t);
     startButton.Enable = 'on';
     stopButton.Enable = 'off';
     labelButton.Enable = 'off';
+    button1.Enable = 'off'; % 新しいボタンを無効化
+    button2.Enable = 'off'; % 新しいボタンを無効化
 
     % プログラムの終了フラグを更新してGUIを閉じる
     close all;
 end
 
 % 動画・再生ボタン
-function labelButtonCallback(hObject, eventdata)
-    global t csv_file csvFilename; % グローバル変数の宣言
+function labelButtonCallback(hObject, eventdata, label)
+    global t csv_file csvFilename;
+    % label: 'Label'ボタンの場合は未定義，'1'ボタンの場合は1，'2'ボタンの場合は2
     % ラベルボタンのコールバック関数の内容をここに記述
     current_time = toc - t.StartDelay; % 経過時間の計算
     disp(current_time);
-    label = 0;
-    fprintf(csv_file, '%d,%.3f\n', label, current_time);
+    if nargin < 3 % 'Label'ボタンが押された場合
+        fprintf(csv_file, '%d,%.3f\n', 0, current_time);
+    else % '1'または'2'ボタンが押された場合
+        fprintf(csv_file, '%d,%.3f\n', label, current_time);
+    end
     fclose(csv_file); % ファイルを閉じる
     csv_file = fopen(csvFilename, 'a'); % ファイルを追記モードで再度開く
 end
 
 % タイマー呼び出し中処理
 function timer_callback(hObject, eventdata)
-
+    % タイマーコールバック関数の内容をここに記述
 end
