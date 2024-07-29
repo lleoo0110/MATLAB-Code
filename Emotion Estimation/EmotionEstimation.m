@@ -108,7 +108,7 @@ end
 
 % EEGデータ収集
 saveInterval = 60; % 保存間隔（秒）
-fileIndex = 1;
+filecspIndex = 1;
 lastSaveTime = tic;
 while isRunning
     [vec, ts] = inlet.pull_sample(); % データの受信
@@ -124,16 +124,16 @@ while isRunning
         % 受信データに応じて処理を行う
         if strcmp(str, '1')
             disp('1');
-            labelButtonCallback(1);
+            labelButtonCallback(hObject, eventdata, 1);
         elseif strcmp(str, '2')
             disp('2');
-            labelButtonCallback(2);
+            labelButtonCallback(hObject, eventdata, 2);
         elseif strcmp(str, '3')
             disp('3');
-            labelButtonCallback(3);
+            labelButtonCallback(hObject, eventdata, 3);
         elseif strcmp(str, '4')
             disp('4');
-            labelButtonCallback(4);
+            labelButtonCallback(hObject, eventdata, 4);
         else
             disp(['Unknown command received: ', str]);
         end
@@ -143,10 +143,10 @@ while isRunning
     if elapsedTime >= saveInterval
         disp('60秒保存');
         % データをファイルに保存
-        save(sprintf('%s_data_%d.mat', params.experiment.dataName, fileIndex), 'eegData');
+        save(sprintf('%s_data_%d.mat', params.experiment.dataName, filecspIndex), 'eegData');
         eegData = []; % メモリから削除
         lastSaveTime = tic;
-        fileIndex = fileIndex + 1; % 連番を増加
+        filecspIndex = filecspIndex + 1; % 連番を増加
     end
 
     pause(0.0001); % 応答性を保つための短い休止
@@ -155,17 +155,17 @@ end
 % 最後の未保存データを保存
 if ~isempty(eegData)
     elapsedTime = toc(lastSaveTime);
-    save(sprintf('%s_data_%d.mat', params.experiment.dataName, fileIndex), 'eegData');
+    save(sprintf('%s_data_%d.mat', params.experiment.dataName, filecspIndex), 'eegData');
 end
 
 savedData = [];
-fileIndex = 1;
+filecspIndex = 1;
 while true
-    filename = sprintf('%s_data_%d.mat', params.experiment.dataName, fileIndex);
+    filename = sprintf('%s_data_%d.mat', params.experiment.dataName, filecspIndex);
     if exist(filename, 'file')
         load(filename, 'eegData');
         savedData = [savedData eegData];
-        fileIndex = fileIndex + 1;
+        filecspIndex = filecspIndex + 1;
     else
         break;
     end
@@ -199,7 +199,7 @@ totalEpochs = nTrials * params.eeg.overlap;
 DataSet = cell(totalEpochs, 1);
 labels = zeros(totalEpochs, 1);
 
-epochIndex = 1;
+epochcspIndex = 1;
 for ii = 1:nTrials
     startIdx = round(params.eeg.Fs * stimulusStart(ii, 2)) + 1;
     endIdx = startIdx + params.eeg.Fs * params.eeg.windowSize - 1;
@@ -212,9 +212,9 @@ for ii = 1:nTrials
         
         % データの範囲チェック
         if epochEndIdx <= size(preprocessedData, 2)
-            DataSet{epochIndex} = preprocessedData(:, epochStartIdx:epochEndIdx);
-            labels(epochIndex) = stimulusStart(ii, 1);  % ラベルを保存
-            epochIndex = epochIndex + 1;
+            DataSet{epochcspIndex} = preprocessedData(:, epochStartIdx:epochEndIdx);
+            labels(epochcspIndex) = stimulusStart(ii, 1);  % ラベルを保存
+            epochcspIndex = epochcspIndex + 1;
         else
             warning('エポック %d-%d がデータの範囲外です。スキップします。', ii, jj);
         end
@@ -222,8 +222,8 @@ for ii = 1:nTrials
 end
 
 % 使用されなかったセルを削除
-DataSet = DataSet(1:epochIndex-1);
-labels = labels(1:epochIndex-1);
+DataSet = DataSet(1:epochcspIndex-1);
+labels = labels(1:epochcspIndex-1);
 
 % データの形状を確認
 disp(['エポック化されたデータセットの数: ', num2str(length(DataSet))]);
@@ -253,8 +253,8 @@ save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStar
 disp('データセットが更新されました。');
 
 
-%% 脳波データ解析
-index = 0;
+%% CSPフィルター作成
+cspIndex = 1;
 accuracyMatrix = zeros(length(uniqueLabels), length(uniqueLabels));
 for i = 1:(length(uniqueLabels))
     for j = i+1:(length(uniqueLabels))
@@ -264,19 +264,19 @@ for i = 1:(length(uniqueLabels))
         labelClassB = labelClass{j};
                 
         % CSP特徴抽出
-        [cspClassA, cspClassB, cspFilters{index}] = processCSPData2Class(dataClassA, dataClassB);
+        [cspClassA, cspClassB, cspFilters{cspIndex}] = processCSPData2Class(dataClassA, dataClassB);
         allCSPFeatures = [cspClassA; cspClassB];
         allLabels = [labelClassA; labelClassB];
         
-        [SVMDataSet{index}, SVMLabels{index}] = reorderData(allCSPFeatures, allLabels, 2);
+        [SVMDataSet, SVMLabels] = reorderData(allCSPFeatures, allLabels, 2);
         
         % 機械学習部分
         X = SVMDataSet;
         y = SVMLabels;
         
         classifierLabel = sprintf('Classifier %d-%d', uniqueLabels(i), uniqueLabels(j));
-        [svmMdl{index}, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, classifierLabel);
-        index = index+1;
+        [svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, classifierLabel);
+        cspIndex = cspIndex+1;
         
         accuracyMatrix(i, j) = meanAccuracy;
         accuracyMatrix(j, i) = meanAccuracy;
@@ -288,7 +288,46 @@ end
 disp('Accuracy Matrix:');
 disp(accuracyMatrix);
 
-save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'SVMDataSet', 'SVMLabels', 'cspFilters', 'svmMdl', 'accuracyMatrix');
+save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'cspFilters', 'accuracyMatrix');
+disp('Data saved successfully.');
+
+
+%% 特徴量抽出
+% CSPフィルタの数（クラスの組み合わせ数）
+numCSPFilters = length(cspFilters);
+
+% 特徴量の次元数（各CSPフィルタから抽出する特徴量の数）
+numFeaturesPerFilter = size(cspFilters{1}, 2);
+
+% 統合された特徴量行列の初期化
+totalEpochs = length(DataSet);
+cspFeatures = zeros(totalEpochs, numCSPFilters * numFeaturesPerFilter);
+
+% 各エポックに対してCSPフィルタを適用し，特徴量を抽出
+for i = 1:totalEpochs
+    epoch = DataSet{i};
+    
+    featureIndex = 1;
+    for j = 1:numCSPFilters
+        cspFilter = cspFilters{j};
+        features = extractCSPFeatures(epoch, cspFilter);
+        
+        startIdx = (j-1) * numFeaturesPerFilter + 1;
+        endIdx = j * numFeaturesPerFilter;
+        cspFeatures(i, startIdx:endIdx) = features;
+    end
+end
+
+save(params.experiment.datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'cspFilters', 'cspFeatures', 'labels');
+
+%% 特徴分類
+X = cspFeatures;
+y = labels;
+
+classifierLabel = sprintf('Classifier %d-%d', uniqueLabels(1), uniqueLabels(2));
+[svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, classifierLabel);
+
+save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'cspFilters', 'cspFeatures', 'labels', 'svmMdl');
 disp('Data saved successfully.');
 
 

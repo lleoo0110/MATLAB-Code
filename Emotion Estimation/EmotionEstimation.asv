@@ -124,16 +124,16 @@ while isRunning
         % 受信データに応じて処理を行う
         if strcmp(str, '1')
             disp('1');
-            labelButtonCallback(1);
+            labelButtonCallback(hObject, eventdata, 1);
         elseif strcmp(str, '2')
             disp('2');
-            labelButtonCallback(2);
+            labelButtonCallback(hObject, eventdata, 2);
         elseif strcmp(str, '3')
             disp('3');
-            labelButtonCallback(3);
+            labelButtonCallback(hObject, eventdata, 3);
         elseif strcmp(str, '4')
             disp('4');
-            labelButtonCallback(4);
+            labelButtonCallback(hObject, eventdata, 4);
         else
             disp(['Unknown command received: ', str]);
         end
@@ -254,7 +254,7 @@ disp('データセットが更新されました。');
 
 
 %% 脳波データ解析
-index = 0;
+index = 1;
 accuracyMatrix = zeros(length(uniqueLabels), length(uniqueLabels));
 for i = 1:(length(uniqueLabels))
     for j = i+1:(length(uniqueLabels))
@@ -275,7 +275,7 @@ for i = 1:(length(uniqueLabels))
         y = SVMLabels;
         
         classifierLabel = sprintf('Classifier %d-%d', uniqueLabels(i), uniqueLabels(j));
-        [svmMdl{index}, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, classifierLabel);
+        [svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, classifierLabel);
         index = index+1;
         
         accuracyMatrix(i, j) = meanAccuracy;

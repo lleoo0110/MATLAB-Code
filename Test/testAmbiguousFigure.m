@@ -1,37 +1,3 @@
-%% データ受信
-% ライブラリーの初期化
-try
-    lib = lsl_loadlib(env_translatepath('dependencies:/liblsl-Matlab/bin'));
-catch
-    lib = lsl_loadlib();
-end
-
-% resolve a stream...
-disp('Resolving an EEG stream...');
-result = {};
-while isempty(result)
-    streamName = 'EmotivDataStream-EEG'; % name of stream. the name is one of vale EmotivDataStream-Motion,
-                                         % EmotivDataStream-EEG , 'EmotivDataStream-Performance Metrics'
-    result = lsl_resolve_byprop(lib,'name', streamName); 
-end
-
-% create a new inlet
-disp('Opening an inlet...');
-inlet = lsl_inlet(result{1});
-
-% get the full stream info (including custom meta-data) and dissect it
-inf = inlet.info();
-fprintf('The stream''s XML meta-data is: \n');
-fprintf([inf.as_xml() '\n']);
-fprintf(['The manufacturer is: ' inf.desc().child_value('manufacturer') '\n']);
-fprintf('The channel labels are as follows:\n');
-ch = inf.desc().child('channels').child('channel');
-for k = 1:inf.channel_count()
-    fprintf(['  ' ch.child_value('label') '\n']);
-    ch = ch.next_sibling();
-end
-
-
 %% パラメータ設定
 global isRunning Ch numFilter csvFilename
 
@@ -50,17 +16,24 @@ params.eeg = struct(...
     'K', 5 ...
 );
 
-% 名前設定パラメータ
+% 実験用パラメータ
 params.experiment = struct(...
-    'name', 'reona' ... % ここを変更
+    'name', 'reona', ... % ここを変更
+    'portNumber', 12354 ...
 );
 params.experiment.datasetName = [params.experiment.name '_dataset'];
 params.experiment.dataName = params.experiment.name;
 params.experiment.csvFilename = [params.experiment.name '_label.csv'];
 
+% 擬似脳波データ生成のためのパラメータを追加
+params.simulation = struct(...
+    'amplitude', 50, ... % マイクロボルト単位の振幅
+    'noise_level', 5 ... % ノイズレベル
+);
+
 % SVMパラメータ設定
 params.model = struct(...
-    'modelType', 'svm', ... % 'svm' or 'ecoc'
+    'modelType', 'ecoc', ... % 'svm' or 'ecoc'
     'useOptimization', false, ...
     'kernelFunctions', {{'linear', 'rbf', 'polynomial'}}, ...
     'kernelScale', [0.1, 1, 10], ...
@@ -92,18 +65,14 @@ preprocessedData = [];
 labels = [];
 stimulusStart = [];
 
-% UDPソケットを作成
-udpSocket = udp('127.0.0.1', 'LocalPort', params.stim.portNumber);
-% 受信データがある場合に処理を行う    
-fopen(udpSocket);
+% % UDPソケットを作成
+% udpSocket = udp('127.0.0.1', 'LocalPort', params.experiment.portNumber);
+% % 受信データがある場合に処理を行う    
+% fopen(udpSocket);
 
 while ~isRunning
     % 待機時間
     pause(0.1);
-end
-
-% LSLバッファのクリア
-while ~isempty(inlet.pull_sample(0)) % 0秒のタイムアウトでpull_sampleを呼び出し、バッファが空になるまで繰り返す
 end
 
 % EEGデータ収集
@@ -111,27 +80,28 @@ saveInterval = 60; % 保存間隔（秒）
 fileIndex = 1;
 lastSaveTime = tic;
 while isRunning
-    [vec, ts] = inlet.pull_sample(); % データの受信
-    vec = vec(:); % 1x19の行ベクトルを19x1の列ベクトルに変換
-    eegData = [eegData vec];
+    % 擬似EEGサンプルを生成
+    eegSample = generateFakeEEGSample(19, params.simulation.amplitude, params.simulation.noise_level);
+    eegData = [eegData eegSample'];
     
-    if udpSocket.BytesAvailable > 0
-        % データを受信
-        receivedData = fread(udpSocket, udpSocket.BytesAvailable, 'uint8');
-        % 受信データを文字列に変換
-        str = char(receivedData');
-
-        % 受信データに応じて処理を行う
-        if strcmp(str, '1')
-            disp('1');
-            labelButtonCallback(1);
-        elseif strcmp(str, '2')
-            disp('2');
-            labelButtonCallback(2);
-        else
-            disp(['Unknown command received: ', str]);
-        end
-    end
+    
+%     if udpSocket.BytesAvailable > 0
+%         % データを受信
+%         receivedData = fread(udpSocket, udpSocket.BytesAvailable, 'uint8');
+%         % 受信データを文字列に変換
+%         str = char(receivedData');
+% 
+%         % 受信データに応じて処理を行う
+%         if strcmp(str, '1')
+%             disp('1');
+%             labelButtonCallback(1);
+%         elseif strcmp(str, '2')
+%             disp('2');
+%             labelButtonCallback(2);
+%         else
+%             disp(['Unknown command received: ', str]);
+%         end
+%     end
     
     elapsedTime = toc(lastSaveTime);
     if elapsedTime >= saveInterval
@@ -171,9 +141,9 @@ save(params.experiment.datasetName, 'eegData');
 disp('データセットが保存されました。');
 
 % UDPソケットを閉じる
-fclose(udpSocket);
-delete(udpSocket);
-clear udpSocket;
+% fclose(udpSocket);
+% delete(udpSocket);
+% clear udpSocket;
 
 
 %% 脳波データの前処理
@@ -247,48 +217,76 @@ save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStar
 disp('データセットが更新されました。');
 
 
-%% CSPデータセット作成
-[cspClass1, cspClass2, cspFilters] = processCSPData2Class(dataClass1, dataClass2);
-SVMDataSet = [cspClass1; cspClass2];
-SVMLabels = [labelClass1; labelClass2];
+
+%% CSPフィルター作成
+cspIndex = 1;
+[~, ~, cspFilters{cspIndex}] = processCSPData2Class(dataClass{1}, dataClass{2});
 
 % データセットを保存
-save(datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'SVMDataSet', 'SVMLabels', 'cspFilters');
+save(params.experiment.datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'cspFilters');
 disp('データセットが更新されました。');
 
 
-%% 分類器作成
-X = SVMDataSet;
-y = SVMLabels;
+%% 特徴量抽出
+% CSPフィルタの数（クラスの組み合わせ数）
+numCSPFilters = length(cspFilters);
 
+% 特徴量の次元数（各CSPフィルタから抽出する特徴量の数）
+numFeaturesPerFilter = size(cspFilters{1}, 2);
+
+% 統合された特徴量行列の初期化
+totalEpochs = length(DataSet);
+cspFeatures = zeros(totalEpochs, numCSPFilters * numFeaturesPerFilter);
+
+% 各エポックに対してCSPフィルタを適用し，特徴量を抽出
+for i = 1:totalEpochs
+    epoch = DataSet{i};
+    
+    featureIndex = 1;
+    for j = 1:numCSPFilters
+        cspFilter = cspFilters{j};
+        features = extractCSPFeatures(epoch, cspFilter);
+        
+        startIdx = (j-1) * numFeaturesPerFilter + 1;
+        endIdx = j * numFeaturesPerFilter;
+        cspFeatures(i, startIdx:endIdx) = features;
+    end
+end
+
+save(params.experiment.datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'cspFilters', 'cspFeatures', 'labels');
+
+%% 特徴分類
+X = cspFeatures;
+y = labels;
+
+classifierLabel = sprintf('Classifier %d-%d', uniqueLabels(1), uniqueLabels(2));
 [svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, classifierLabel);
 
-save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'SVMDataSet', 'SVMLabels', 'cspFilters', 'svmMdl');
+save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'cspFilters', 'cspFeatures', 'labels', 'svmMdl');
 disp('Data saved successfully.');
 
 
 %% ボタン構成
-createMovieStartGUI();
 function createMovieStartGUI()
     global t csv_file label_name startButton stopButton labelButton csvFilename button1 button2; % グローバル変数に button1 と button2 を追加
     % GUIの作成と設定をここに記述
-    fig = figure('Position', [100 100 300 250], 'MenuBar', 'none', 'ToolBar', 'none'); % ウィンドウの高さを増加
+    fig = figure('Position', [100 100 300 200], 'MenuBar', 'none', 'ToolBar', 'none'); % ウィンドウの高さを増加
 
     startButton = uicontrol('Style', 'pushbutton', 'String', 'Start', ...
-        'Position', [50 200 70 30], 'Callback', @startButtonCallback);
+        'Position', [60 140 70 30], 'Callback', @startButtonCallback);
 
     stopButton = uicontrol('Style', 'pushbutton', 'String', 'Stop', ...
-        'Position', [150 200 70 30], 'Callback', @stopButtonCallback, 'Enable', 'off');
+        'Position', [160 140 70 30], 'Callback', @stopButtonCallback, 'Enable', 'off');
 
     labelButton = uicontrol('Style', 'pushbutton', 'String', 'Label', ...
-        'Position', [100 150 70 30], 'Callback', @labelButtonCallback, 'Enable', 'off');
+        'Position', [110 90 70 30], 'Callback', @labelButtonCallback, 'Enable', 'off');
 
     % 新しいボタンを追加
     button1 = uicontrol('Style', 'pushbutton', 'String', '1', ...
-        'Position', [50 100 70 30], 'Callback', @(hObject,eventdata)labelButtonCallback(hObject,eventdata,1), 'Enable', 'off');
+        'Position', [60 40 70 30], 'Callback', @(hObject,eventdata)labelButtonCallback(hObject,eventdata,1), 'Enable', 'off');
 
     button2 = uicontrol('Style', 'pushbutton', 'String', '2', ...
-        'Position', [150 100 70 30], 'Callback', @(hObject,eventdata)labelButtonCallback(hObject,eventdata,2), 'Enable', 'off');
+        'Position', [160 40 70 30], 'Callback', @(hObject,eventdata)labelButtonCallback(hObject,eventdata,2), 'Enable', 'off');
 
     % 他の初期化コードをここに記述
     label_name = 'stimulus';
@@ -337,7 +335,7 @@ function labelButtonCallback(hObject, eventdata, label)
     current_time = toc - t.StartDelay; % 経過時間の計算
     disp(current_time);
     if nargin < 3 % 'Label'ボタンが押された場合
-        fprintf(csv_file, '%d,%.3f\n', 0, current_time);
+        fprintf(csv_file, '%d,%.3f\n', 3, current_time);
     else % '1'または'2'ボタンが押された場合
         fprintf(csv_file, '%d,%.3f\n', label, current_time);
     end

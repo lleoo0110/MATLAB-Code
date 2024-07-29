@@ -93,7 +93,7 @@ labels = [];
 stimulusStart = [];
 
 % UDPソケットを作成
-udpSocket = udp('127.0.0.1', 'LocalPort', params.stim.portNumber);
+udpSocket = udp('127.0.0.1', 'LocalPort', params.experiment.portNumber);
 % 受信データがある場合に処理を行う    
 fopen(udpSocket);
 
@@ -114,24 +114,6 @@ while isRunning
     [vec, ts] = inlet.pull_sample(); % データの受信
     vec = vec(:); % 1x19の行ベクトルを19x1の列ベクトルに変換
     eegData = [eegData vec];
-    
-    if udpSocket.BytesAvailable > 0
-        % データを受信
-        receivedData = fread(udpSocket, udpSocket.BytesAvailable, 'uint8');
-        % 受信データを文字列に変換
-        str = char(receivedData');
-
-        % 受信データに応じて処理を行う
-        if strcmp(str, '1')
-            disp('1');
-            labelButtonCallback(1);
-        elseif strcmp(str, '2')
-            disp('2');
-            labelButtonCallback(2);
-        else
-            disp(['Unknown command received: ', str]);
-        end
-    end
     
     elapsedTime = toc(lastSaveTime);
     if elapsedTime >= saveInterval
@@ -247,23 +229,51 @@ save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStar
 disp('データセットが更新されました。');
 
 
-%% CSPデータセット作成
-[cspClass1, cspClass2, cspFilters] = processCSPData2Class(dataClass1, dataClass2);
-SVMDataSet = [cspClass1; cspClass2];
-SVMLabels = [labelClass1; labelClass2];
+%% CSPフィルター作成
+cspIndex = 1;
+[~, ~, cspFilters{cspIndex}] = processCSPData2Class(dataClass{1}, dataClass{2});
 
 % データセットを保存
-save(datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'SVMDataSet', 'SVMLabels', 'cspFilters');
+save(params.experiment.datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'cspFilters');
 disp('データセットが更新されました。');
 
 
-%% 分類器作成
-X = SVMDataSet;
-y = SVMLabels;
+%% 特徴量抽出
+% CSPフィルタの数（クラスの組み合わせ数）
+numCSPFilters = length(cspFilters);
 
+% 特徴量の次元数（各CSPフィルタから抽出する特徴量の数）
+numFeaturesPerFilter = size(cspFilters{1}, 2);
+
+% 統合された特徴量行列の初期化
+totalEpochs = length(DataSet);
+cspFeatures = zeros(totalEpochs, numCSPFilters * numFeaturesPerFilter);
+
+% 各エポックに対してCSPフィルタを適用し，特徴量を抽出
+for i = 1:totalEpochs
+    epoch = DataSet{i};
+    
+    featureIndex = 1;
+    for j = 1:numCSPFilters
+        cspFilter = cspFilters{j};
+        features = extractCSPFeatures(epoch, cspFilter);
+        
+        startIdx = (j-1) * numFeaturesPerFilter + 1;
+        endIdx = j * numFeaturesPerFilter;
+        cspFeatures(i, startIdx:endIdx) = features;
+    end
+end
+
+save(params.experiment.datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'cspFilters', 'cspFeatures', 'labels');
+
+%% 特徴分類
+X = cspFeatures;
+y = labels;
+
+classifierLabel = sprintf('Classifier %d-%d', uniqueLabels(1), uniqueLabels(2));
 [svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, classifierLabel);
 
-save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'SVMDataSet', 'SVMLabels', 'cspFilters', 'svmMdl');
+save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'cspFilters', 'cspFeatures', 'labels', 'svmMdl');
 disp('Data saved successfully.');
 
 
