@@ -288,18 +288,16 @@ for i = 1:(length(uniqueLabels))
         labelClassB = labelClass{j};
                 
         % CSP特徴抽出
-        [cspClassA, cspClassB, cspFiltersAB] = processCSPData2Class(dataClassA, dataClassB);
+        [cspClassA, cspClassB, ~] = processCSPData2Class(dataClassA, dataClassB);
         allCSPFeatures = [cspClassA; cspClassB];
         allLabels = [labelClassA; labelClassB];
-        
-        numClasses = 2;  % クラスAとクラスBの2クラス
-        [SVMDataSet, SVMLabels] = reorderData(allCSPFeatures, allLabels, numClasses);
-        
+                
         % 機械学習部分
-        X = SVMDataSet;
-        y = SVMLabels;
+        X = allCSPFeatures;
+        y = allLabels;
         
-        [~, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, 'Classifier 1-2');
+        classifierLabel = sprintf('Classifier %d-%d', uniqueLabels(i), uniqueLabels(j));
+        [~, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, classifierLabel);
     
         accuracyMatrix(i, j) = meanAccuracy;
         accuracyMatrix(j, i) = meanAccuracy;

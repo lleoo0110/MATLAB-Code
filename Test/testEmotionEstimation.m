@@ -1,37 +1,3 @@
-%% データ受信
-% ライブラリーの初期化
-try
-    lib = lsl_loadlib(env_translatepath('dependencies:/liblsl-Matlab/bin'));
-catch
-    lib = lsl_loadlib();
-end
-
-% resolve a stream...
-disp('Resolving an EEG stream...');
-result = {};
-while isempty(result)
-    streamName = 'EmotivDataStream-EEG'; % name of stream. the name is one of vale EmotivDataStream-Motion,
-                                         % EmotivDataStream-EEG , 'EmotivDataStream-Performance Metrics'
-    result = lsl_resolve_byprop(lib,'name', streamName); 
-end
-
-% create a new inlet
-disp('Opening an inlet...');
-inlet = lsl_inlet(result{1});
-
-% get the full stream info (including custom meta-data) and dissect it
-inf = inlet.info();
-fprintf('The stream''s XML meta-data is: \n');
-fprintf([inf.as_xml() '\n']);
-fprintf(['The manufacturer is: ' inf.desc().child_value('manufacturer') '\n']);
-fprintf('The channel labels are as follows:\n');
-ch = inf.desc().child('channels').child('channel');
-for k = 1:inf.channel_count()
-    fprintf(['  ' ch.child_value('label') '\n']);
-    ch = ch.next_sibling();
-end
-
-
 %% パラメータ設定
 global isRunning Ch numFilter csvFilename
 
@@ -44,15 +10,23 @@ params.eeg = struct(...
     'maxf', 30, ...
     'Fs', 256, ...
     'filtOrder', 1024, ...
-    'overlap', 4, ...
+    'overlap',1, ...
     'windowSize', 2, ...
     'numFilter', 7, ...
     'K', 5 ...
 );
 
+% データ拡張用パラメータ
+params.varargin = struct(...
+    'numAugmentations', 10, ...
+    'maxShiftRatio', 0.2, ...
+    'noiseLevel', 0.1 ...
+);
+
+
 % 名前設定パラメータ
 params.experiment = struct(...
-    'name', 'takerun' ... % ここを変更
+    'name', 'test' ... % ここを変更
 );
 params.experiment.datasetName = [params.experiment.name '_dataset'];
 params.experiment.dataName = params.experiment.name;
@@ -60,11 +34,17 @@ params.experiment.csvFilename = [params.experiment.name '_label.csv'];
 
 % SVMパラメータ設定
 params.model = struct(...
-    'modelType', 'svm', ... % 'svm' or 'ecoc'
+    'modelType', 'ecoc', ... % 'svm' or 'ecoc'
     'useOptimization', false, ...
     'kernelFunctions', {{'linear', 'rbf', 'polynomial'}}, ...
     'kernelScale', [0.1, 1, 10], ...
     'boxConstraint', [0.1, 1, 10, 100] ...
+);
+
+% 擬似脳波データ生成のためのパラメータを追加
+params.simulation = struct(...
+    'amplitude', 50, ... % マイクロボルト単位の振幅
+    'noise_level', 5 ... % ノイズレベル
 );
 
 % EPOCX設定（14Ch）
@@ -92,64 +72,50 @@ preprocessedData = [];
 labels = [];
 stimulusStart = [];
 
-% UDPソケットを作成
-udpSocket = udp('127.0.0.1', 'LocalPort', params.stim.portNumber);
-% 受信データがある場合に処理を行う    
-fopen(udpSocket);
 
 while ~isRunning
     % 待機時間
     pause(0.1);
 end
 
-% LSLバッファのクリア
-while ~isempty(inlet.pull_sample(0)) % 0秒のタイムアウトでpull_sampleを呼び出し、バッファが空になるまで繰り返す
-end
 
 % EEGデータ収集
 saveInterval = 60; % 保存間隔（秒）
 fileIndex = 1;
 lastSaveTime = tic;
+lastSampleTime = tic;
+sampleCounter = 0;
 while isRunning
-    [vec, ts] = inlet.pull_sample(); % データの受信
-    vec = vec(:); % 1x19の行ベクトルを19x1の列ベクトルに変換
-    eegData = [eegData vec];
+    currentTime = toc(lastSampleTime);
+    samplesNeeded = floor(currentTime * params.eeg.Fs) - sampleCounter;
     
-    if udpSocket.BytesAvailable > 0
-        % データを受信
-        receivedData = fread(udpSocket, udpSocket.BytesAvailable, 'uint8');
-        % 受信データを文字列に変換
-        str = char(receivedData');
-
-        % 受信データに応じて処理を行う
-        if strcmp(str, '1')
-            disp('1');
-            labelButtonCallback(hObject, eventdata, 1);
-        elseif strcmp(str, '2')
-            disp('2');
-            labelButtonCallback(hObject, eventdata, 2);
-        elseif strcmp(str, '3')
-            disp('3');
-            labelButtonCallback(hObject, eventdata, 3);
-        elseif strcmp(str, '4')
-            disp('4');
-            labelButtonCallback(hObject, eventdata, 4);
-        else
-            disp(['Unknown command received: ', str]);
+    if samplesNeeded > 0
+        for i = 1:samplesNeeded
+            % 擬似EEGサンプルを生成
+            eegSample = generateFakeEEGSample(19, params.simulation.amplitude, params.simulation.noise_level);
+            eegData = [eegData eegSample'];
+            sampleCounter = sampleCounter + 1;
         end
-    end
-    
-    elapsedTime = toc(lastSaveTime);
-    if elapsedTime >= saveInterval
-        disp('60秒保存');
-        % データをファイルに保存
-        save(sprintf('%s_data_%d.mat', params.experiment.dataName, fileIndex), 'eegData');
-        eegData = []; % メモリから削除
-        lastSaveTime = tic;
-        fileIndex = fileIndex + 1; % 連番を増加
+        
+        elapsedTime = toc(lastSaveTime);
+        if elapsedTime >= saveInterval
+            disp(['60秒保存しました。']);
+            
+            save(sprintf('%s_data_%d.mat', params.experiment.dataName, fileIndex), 'eegData');
+            eegData = []; % メモリから削除
+            lastSaveTime = tic;
+            fileIndex = fileIndex + 1; % 連番を増加
+        end
     end
 
     pause(0.0001); % 応答性を保つための短い休止
+    
+    
+    % 1秒ごとにカウンターをリセット
+    if currentTime >= 1
+        lastSampleTime = tic;
+        sampleCounter = 0;
+    end
 end
 
 % 最後の未保存データを保存
@@ -176,11 +142,6 @@ eegData = savedData; % EEGデータの保存
 save(params.experiment.datasetName, 'eegData');
 disp('データセットが保存されました。');
 
-% UDPソケットを閉じる
-fclose(udpSocket);
-delete(udpSocket);
-clear udpSocket;
-
 
 %% 脳波データの前処理
 disp('データ解析中...しばらくお待ちください...');
@@ -199,9 +160,9 @@ totalEpochs = nTrials * params.eeg.overlap;
 DataSet = cell(totalEpochs, 1);
 labels = zeros(totalEpochs, 1);
 
-epochIndex = 1;
+epochcspIndex = 1;
 for ii = 1:nTrials
-    startIdx = round(params.eeg.Fs * stimulusStart(ii, 2)) + 1;
+    startIdx = round(params.eeg.Fs * (stimulusStart(ii, 2)-1)) + 1;
     endIdx = startIdx + params.eeg.Fs * params.eeg.windowSize - 1;
     
     % エポック化
@@ -212,9 +173,9 @@ for ii = 1:nTrials
         
         % データの範囲チェック
         if epochEndIdx <= size(preprocessedData, 2)
-            DataSet{epochIndex} = preprocessedData(:, epochStartIdx:epochEndIdx);
-            labels(epochIndex) = stimulusStart(ii, 1);  % ラベルを保存
-            epochIndex = epochIndex + 1;
+            DataSet{epochcspIndex} = preprocessedData(:, epochStartIdx:epochEndIdx);
+            labels(epochcspIndex) = stimulusStart(ii, 1);  % ラベルを保存
+            epochcspIndex = epochcspIndex + 1;
         else
             warning('エポック %d-%d がデータの範囲外です。スキップします。', ii, jj);
         end
@@ -222,21 +183,24 @@ for ii = 1:nTrials
 end
 
 % 使用されなかったセルを削除
-DataSet = DataSet(1:epochIndex-1);
-labels = labels(1:epochIndex-1);
+DataSet = DataSet(1:epochcspIndex-1);
+labels = labels(1:epochcspIndex-1);
+
+% データ拡張
+[augmentedData, augmentedLabels] = augmentEEGData(DataSet, labels, params.varargin);
 
 % データの形状を確認
-disp(['エポック化されたデータセットの数: ', num2str(length(DataSet))]);
-disp(['各エポックのサイズ: ', num2str(size(DataSet{1}))]);
+disp(['エポック化されたデータセットの数: ', num2str(length(augmentedData))]);
+disp(['各エポックのサイズ: ', num2str(size(augmentedData{1}))]);
 
 
 % 各ラベルに対応するデータを抽出
-uniqueLabels = unique(labels);
+uniqueLabels = unique(augmentedLabels);
 labelData = cell(length(uniqueLabels), 1);
 
 % データセットをラベルごとに分類
 for i = 1:length(uniqueLabels)
-    labelData{i} = DataSet(labels == uniqueLabels(i), :);
+    labelData{i} = augmentedData(augmentedLabels == uniqueLabels(i), :);
 end
 
 dataClass = cell(length(uniqueLabels), 1);
@@ -247,49 +211,41 @@ for i = 1:length(uniqueLabels)
     labelClass{i,1} = repmat(i, size(dataClass{i}, 1), 1);
 end
 
-
 % データセットを保存
 save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart');
 disp('データセットが更新されました。');
 
-
-%% 脳波データ解析
-index = 1;
-accuracyMatrix = zeros(length(uniqueLabels), length(uniqueLabels));
+%% CSPフィルター作成
+cspIndex = 1;
 for i = 1:(length(uniqueLabels))
     for j = i+1:(length(uniqueLabels))
         dataClassA = dataClass{i};
         dataClassB = dataClass{j};
-        labelClassA = labelClass{i};
-        labelClassB = labelClass{j};
                 
         % CSP特徴抽出
-        [cspClassA, cspClassB, cspFilters{index}] = processCSPData2Class(dataClassA, dataClassB);
-        allCSPFeatures = [cspClassA; cspClassB];
-        allLabels = [labelClassA; labelClassB];
-        
-        [SVMDataSet{index}, SVMLabels{index}] = reorderData(allCSPFeatures, allLabels, 2);
-        
-        % 機械学習部分
-        X = SVMDataSet;
-        y = SVMLabels;
-        
-        classifierLabel = sprintf('Classifier %d-%d', uniqueLabels(i), uniqueLabels(j));
-        [svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, classifierLabel);
-        index = index+1;
-        
-        accuracyMatrix(i, j) = meanAccuracy;
-        accuracyMatrix(j, i) = meanAccuracy;
-        
-        close('all');
+        [~, ~, cspFilters{cspIndex}] = processCSPData2Class(dataClassA, dataClassB);
+        cspIndex = cspIndex+1;
     end
 end
 
-disp('Accuracy Matrix:');
-disp(accuracyMatrix);
+save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'cspFilters');
+disp('データセットが更新されました。');
 
-save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'SVMDataSet', 'SVMLabels', 'cspFilters', 'svmMdl', 'accuracyMatrix');
-disp('Data saved successfully.');
+
+%% 特徴量抽出
+cspFeatures = extractIntegratedCSPFeatures(augmentedData, cspFilters);
+
+save(params.experiment.datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'cspFilters', 'cspFeatures', 'labels');
+disp('データセットが更新されました。');
+
+%% 特徴分類
+X = cspFeatures;
+y = augmentedLabels;
+
+[svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, '4クラス分類');
+
+save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'cspFilters', 'cspFeatures', 'labels', 'svmMdl');
+disp('データセットが更新されました。');
 
 
 %% ボタン構成
@@ -343,11 +299,12 @@ function stopButtonCallback(hObject, eventdata)
 end
 
 % 動画・再生ボタン
-function labelButtonCallback(hObject, eventdata, label)
+function labelButtonCallback(hObject, eventdata)
     global t csv_file csvFilename; % グローバル変数の宣言
     % ラベルボタンのコールバック関数の内容をここに記述
     current_time = toc - t.StartDelay; % 経過時間の計算
     disp(current_time);
+    label = randi([1, 4]);
     fprintf(csv_file, '%d,%.3f\n', label, current_time);
     fclose(csv_file); % ファイルを閉じる
     csv_file = fopen(csvFilename, 'a'); % ファイルを追記モードで再度開く

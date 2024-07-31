@@ -16,6 +16,13 @@ params.eeg = struct(...
     'K', 5 ...
 );
 
+% データ拡張用パラメータ
+params.varargin = struct(...
+    'numAugmentations', 10, ...
+    'maxShiftRatio', 0.2, ...
+    'noiseLevel', 0.1 ...
+);
+
 % 実験用パラメータ
 params.experiment = struct(...
     'name', 'reona', ... % ここを変更
@@ -33,7 +40,7 @@ params.simulation = struct(...
 
 % SVMパラメータ設定
 params.model = struct(...
-    'modelType', 'ecoc', ... % 'svm' or 'ecoc'
+    'modelType', 'svm', ... % 'svm' or 'ecoc'
     'useOptimization', false, ...
     'kernelFunctions', {{'linear', 'rbf', 'polynomial'}}, ...
     'kernelScale', [0.1, 1, 10], ...
@@ -64,11 +71,8 @@ eegData = [];
 preprocessedData = [];
 labels = [];
 stimulusStart = [];
-
-% % UDPソケットを作成
-% udpSocket = udp('127.0.0.1', 'LocalPort', params.experiment.portNumber);
-% % 受信データがある場合に処理を行う    
-% fopen(udpSocket);
+augmentedData = [];
+augmentedLabels = [];
 
 while ~isRunning
     % 待機時間
@@ -79,41 +83,40 @@ end
 saveInterval = 60; % 保存間隔（秒）
 fileIndex = 1;
 lastSaveTime = tic;
+
+lastSampleTime = tic;
+sampleCounter = 0;
 while isRunning
-    % 擬似EEGサンプルを生成
-    eegSample = generateFakeEEGSample(19, params.simulation.amplitude, params.simulation.noise_level);
-    eegData = [eegData eegSample'];
+    currentTime = toc(lastSampleTime);
+    samplesNeeded = floor(currentTime * params.eeg.Fs) - sampleCounter;
     
-    
-%     if udpSocket.BytesAvailable > 0
-%         % データを受信
-%         receivedData = fread(udpSocket, udpSocket.BytesAvailable, 'uint8');
-%         % 受信データを文字列に変換
-%         str = char(receivedData');
-% 
-%         % 受信データに応じて処理を行う
-%         if strcmp(str, '1')
-%             disp('1');
-%             labelButtonCallback(1);
-%         elseif strcmp(str, '2')
-%             disp('2');
-%             labelButtonCallback(2);
-%         else
-%             disp(['Unknown command received: ', str]);
-%         end
-%     end
-    
-    elapsedTime = toc(lastSaveTime);
-    if elapsedTime >= saveInterval
-        disp('60秒保存');
-        % データをファイルに保存
-        save(sprintf('%s_data_%d.mat', params.experiment.dataName, fileIndex), 'eegData');
-        eegData = []; % メモリから削除
-        lastSaveTime = tic;
-        fileIndex = fileIndex + 1; % 連番を増加
+    if samplesNeeded > 0
+        for i = 1:samplesNeeded
+            % 擬似EEGサンプルを生成
+            eegSample = generateFakeEEGSample(19, params.simulation.amplitude, params.simulation.noise_level);
+            eegData = [eegData eegSample'];
+            sampleCounter = sampleCounter + 1;
+        end
+        
+        elapsedTime = toc(lastSaveTime);
+        if elapsedTime >= saveInterval
+            disp(['Samples collected: ' num2str(size(eegData, 2))]);
+            
+            save(sprintf('%s_data_%d.mat', params.experiment.dataName, fileIndex), 'eegData');
+            eegData = []; % メモリから削除
+            lastSaveTime = tic;
+            fileIndex = fileIndex + 1; % 連番を増加
+        end
     end
 
     pause(0.0001); % 応答性を保つための短い休止
+    
+    
+    % 1秒ごとにカウンターをリセット
+    if currentTime >= 1
+        lastSampleTime = tic;
+        sampleCounter = 0;
+    end
 end
 
 % 最後の未保存データを保存
@@ -139,11 +142,6 @@ eegData = savedData; % EEGデータの保存
 % データセットを保存
 save(params.experiment.datasetName, 'eegData');
 disp('データセットが保存されました。');
-
-% UDPソケットを閉じる
-% fclose(udpSocket);
-% delete(udpSocket);
-% clear udpSocket;
 
 
 %% 脳波データの前処理
@@ -189,18 +187,21 @@ end
 DataSet = DataSet(1:epochIndex-1);
 labels = labels(1:epochIndex-1);
 
+% データ拡張
+[augmentedData, augmentedLabels] = augmentEEGData(DataSet, labels, params.varargin);
+
 % データの形状を確認
-disp(['エポック化されたデータセットの数: ', num2str(length(DataSet))]);
-disp(['各エポックのサイズ: ', num2str(size(DataSet{1}))]);
+disp(['エポック化されたデータセットの数: ', num2str(length(augmentedData))]);
+disp(['各エポックのサイズ: ', num2str(size(augmentedData{1}))]);
 
 
 % 各ラベルに対応するデータを抽出
-uniqueLabels = unique(labels);
+uniqueLabels = unique(augmentedLabels);
 labelData = cell(length(uniqueLabels), 1);
 
 % データセットをラベルごとに分類
 for i = 1:length(uniqueLabels)
-    labelData{i} = DataSet(labels == uniqueLabels(i), :);
+    labelData{i} = augmentedData(augmentedLabels == uniqueLabels(i), :);
 end
 
 dataClass = cell(length(uniqueLabels), 1);
@@ -211,11 +212,9 @@ for i = 1:length(uniqueLabels)
     labelClass{i,1} = repmat(i, size(dataClass{i}, 1), 1);
 end
 
-
 % データセットを保存
 save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart');
 disp('データセットが更新されました。');
-
 
 
 %% CSPフィルター作成
@@ -228,36 +227,13 @@ disp('データセットが更新されました。');
 
 
 %% 特徴量抽出
-% CSPフィルタの数（クラスの組み合わせ数）
-numCSPFilters = length(cspFilters);
-
-% 特徴量の次元数（各CSPフィルタから抽出する特徴量の数）
-numFeaturesPerFilter = size(cspFilters{1}, 2);
-
-% 統合された特徴量行列の初期化
-totalEpochs = length(DataSet);
-cspFeatures = zeros(totalEpochs, numCSPFilters * numFeaturesPerFilter);
-
-% 各エポックに対してCSPフィルタを適用し，特徴量を抽出
-for i = 1:totalEpochs
-    epoch = DataSet{i};
-    
-    featureIndex = 1;
-    for j = 1:numCSPFilters
-        cspFilter = cspFilters{j};
-        features = extractCSPFeatures(epoch, cspFilter);
-        
-        startIdx = (j-1) * numFeaturesPerFilter + 1;
-        endIdx = j * numFeaturesPerFilter;
-        cspFeatures(i, startIdx:endIdx) = features;
-    end
-end
+cspFeatures = extractIntegratedCSPFeatures(augmentedData, cspFilters);
 
 save(params.experiment.datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'cspFilters', 'cspFeatures', 'labels');
 
 %% 特徴分類
 X = cspFeatures;
-y = labels;
+y = augmentedLabels;
 
 classifierLabel = sprintf('Classifier %d-%d', uniqueLabels(1), uniqueLabels(2));
 [svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, classifierLabel);

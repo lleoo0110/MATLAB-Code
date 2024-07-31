@@ -1,40 +1,58 @@
-function augmented_data = augmentEEGData(eeg_data, varargin)
-    % デフォルトのパラメータ
-    default_num_augmentations = 1; % 拡張倍率
-    default_max_shift = 100;
-    default_noise_level = 0.05;
-    
-    % 入力パラメータの解析
-    p = inputParser;
-    addOptional(p, 'num_augmentations', default_num_augmentations, @isnumeric);
-    addOptional(p, 'max_shift', default_max_shift, @isnumeric);
-    addOptional(p, 'noise_level', default_noise_level, @isnumeric);
-    parse(p, varargin{:});
-    
-    num_augmentations = p.Results.num_augmentations;
-    max_shift = p.Results.max_shift;
-    noise_level = p.Results.noise_level;
-    
-    [n_channels, n_timepoints] = size(eeg_data);
-    
-    % オリジナルデータと拡張データを含む2次元配列を初期化
-    augmented_data = zeros(n_channels, n_timepoints * (num_augmentations + 1));
-    
-    % オリジナルデータを追加
-    augmented_data(:, 1:n_timepoints) = eeg_data;
-    
-    for i = 1:num_augmentations
-        start_idx = i * n_timepoints + 1;
-        end_idx = (i + 1) * n_timepoints;
-        
-        for ch = 1:n_channels
-            % 各チャンネルごとにシフトとノイズを適用
-            shift = randi([-max_shift, max_shift]);
-            shifted_data = circshift(eeg_data(ch,:), shift);
-            
-            % ノイズ付加
-            noise = noise_level * std(eeg_data(ch,:)) * randn(1, n_timepoints);
-            augmented_data(ch, start_idx:end_idx) = shifted_data + noise;
+function [augmented_data, augmented_labels] = augmentEEGData(eeg_data, labels, params)
+    default_params.numAugmentations = 1;
+    default_params.maxShiftRatio = 0.1;
+    default_params.noiseLevel = 0.05;
+
+    if nargin < 3
+        params = default_params;
+    else
+        % paramsが構造体でない場合、構造体に変換
+        if ~isstruct(params)
+            tmp_params = struct();
+            field_names = fieldnames(default_params);
+            for i = 1:numel(field_names)
+                if isfield(params, field_names{i})
+                    tmp_params.(field_names{i}) = params.(field_names{i});
+                else
+                    tmp_params.(field_names{i}) = default_params.(field_names{i});
+                end
+            end
+            params = tmp_params;
+        end
+    end
+
+    num_datasets = numel(eeg_data);
+    [n_channels, n_timepoints] = size(eeg_data{1});
+
+    augmented_data = cell((params.numAugmentations + 1) * num_datasets, 1);
+    augmented_labels = zeros((params.numAugmentations + 1) * num_datasets, 1);
+
+    idx = 1;
+    for i = 1:num_datasets
+        data = eeg_data{i};
+        label = labels(i);
+        max_shift = round(n_timepoints * params.maxShiftRatio);
+
+        augmented_data{idx} = data;
+        augmented_labels(idx) = label;
+        idx = idx + 1;
+
+        for j = 1:params.numAugmentations
+            aug_data = zeros(n_channels, n_timepoints);
+
+            for ch = 1:n_channels
+                % 時間シフト
+                shift = randi([-max_shift, max_shift]);
+                shifted_data = circshift(data(ch,:), shift);
+
+                % ノイズ付加
+                noise = params.noiseLevel * std(data(ch,:)) * randn(1, n_timepoints);
+                aug_data(ch,:) = shifted_data + noise;
+            end
+
+            augmented_data{idx} = aug_data;
+            augmented_labels(idx) = label;
+            idx = idx + 1;
         end
     end
 end

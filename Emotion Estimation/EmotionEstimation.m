@@ -50,6 +50,13 @@ params.eeg = struct(...
     'K', 5 ...
 );
 
+% データ拡張用パラメータ
+params.varargin = struct(...
+    'numAugmentations', 10, ...
+    'maxShiftRatio', 0.2, ...
+    'noiseLevel', 0.1 ...
+);
+
 % 名前設定パラメータ
 params.experiment = struct(...
     'name', 'takerun' ... % ここを変更
@@ -123,17 +130,20 @@ while isRunning
 
         % 受信データに応じて処理を行う
         if strcmp(str, '1')
-            disp('1');
+            disp('嬉');
             labelButtonCallback(hObject, eventdata, 1);
         elseif strcmp(str, '2')
-            disp('2');
+            disp('楽');
             labelButtonCallback(hObject, eventdata, 2);
         elseif strcmp(str, '3')
-            disp('3');
+            disp('哀');
             labelButtonCallback(hObject, eventdata, 3);
         elseif strcmp(str, '4')
-            disp('4');
+            disp('怒');
             labelButtonCallback(hObject, eventdata, 4);
+        elseif strcmp(str, '5')
+            disp('安静');
+            labelButtonCallback(hObject, eventdata, 5);
         else
             disp(['Unknown command received: ', str]);
         end
@@ -255,70 +265,26 @@ disp('データセットが更新されました。');
 
 %% CSPフィルター作成
 cspIndex = 1;
-accuracyMatrix = zeros(length(uniqueLabels), length(uniqueLabels));
 for i = 1:(length(uniqueLabels))
     for j = i+1:(length(uniqueLabels))
         dataClassA = dataClass{i};
         dataClassB = dataClass{j};
-        labelClassA = labelClass{i};
-        labelClassB = labelClass{j};
                 
         % CSP特徴抽出
-        [cspClassA, cspClassB, cspFilters{cspIndex}] = processCSPData2Class(dataClassA, dataClassB);
-        allCSPFeatures = [cspClassA; cspClassB];
-        allLabels = [labelClassA; labelClassB];
-        
-        [SVMDataSet, SVMLabels] = reorderData(allCSPFeatures, allLabels, 2);
-        
-        % 機械学習部分
-        X = SVMDataSet;
-        y = SVMLabels;
-        
-        classifierLabel = sprintf('Classifier %d-%d', uniqueLabels(i), uniqueLabels(j));
-        [svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, classifierLabel);
+        [~, ~, cspFilters{cspIndex}] = processCSPData2Class(dataClassA, dataClassB);
         cspIndex = cspIndex+1;
-        
-        accuracyMatrix(i, j) = meanAccuracy;
-        accuracyMatrix(j, i) = meanAccuracy;
-        
-        close('all');
     end
 end
 
-disp('Accuracy Matrix:');
-disp(accuracyMatrix);
-
-save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'cspFilters', 'accuracyMatrix');
-disp('Data saved successfully.');
+save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'cspFilters');
+disp('データセットが更新されました。');
 
 
 %% 特徴量抽出
-% CSPフィルタの数（クラスの組み合わせ数）
-numCSPFilters = length(cspFilters);
-
-% 特徴量の次元数（各CSPフィルタから抽出する特徴量の数）
-numFeaturesPerFilter = size(cspFilters{1}, 2);
-
-% 統合された特徴量行列の初期化
-totalEpochs = length(DataSet);
-cspFeatures = zeros(totalEpochs, numCSPFilters * numFeaturesPerFilter);
-
-% 各エポックに対してCSPフィルタを適用し，特徴量を抽出
-for i = 1:totalEpochs
-    epoch = DataSet{i};
-    
-    featureIndex = 1;
-    for j = 1:numCSPFilters
-        cspFilter = cspFilters{j};
-        features = extractCSPFeatures(epoch, cspFilter);
-        
-        startIdx = (j-1) * numFeaturesPerFilter + 1;
-        endIdx = j * numFeaturesPerFilter;
-        cspFeatures(i, startIdx:endIdx) = features;
-    end
-end
+cspFeatures = extractIntegratedCSPFeatures(DataSet, cspFilters);
 
 save(params.experiment.datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'cspFilters', 'cspFeatures', 'labels');
+disp('データセットが更新されました。');
 
 %% 特徴分類
 X = cspFeatures;
@@ -328,7 +294,7 @@ classifierLabel = sprintf('Classifier %d-%d', uniqueLabels(1), uniqueLabels(2));
 [svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, classifierLabel);
 
 save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'cspFilters', 'cspFeatures', 'labels', 'svmMdl');
-disp('Data saved successfully.');
+disp('データセットが更新されました。');
 
 
 %% ボタン構成
