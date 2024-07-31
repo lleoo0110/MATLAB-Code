@@ -4,4 +4,7 @@ function features = extractCSPFeatures(data, cspFilters)
 
     % 特徴量の計算（フィルターされた信号の対数バリアンス）
     features = log(var(filteredData, 0, 2));
+    
+    % 正規化
+    % features = log(variances / sum(variances));
 end

@@ -50,18 +50,16 @@ params.eeg = struct(...
     'K', 5 ...
 );
 
-% 動画刺激パラメータ
-params.stim = struct(...
-    'videoDuration', 5 * 60, ... % 動画の全体長（秒）
-    'initialDelay', 5, ... % 動画開始から最初の刺激までの遅延（秒）
-    'cycleDuration', 10, ... % 1サイクルの長さ（秒）
-    'labelName', 'Experiment_', ...
-    'portNumber', 12354 ...
+% データ拡張用パラメータ
+params.varargin = struct(...
+    'numAugmentations', 10, ...
+    'maxShiftRatio', 0.2, ...
+    'noiseLevel', 0.1 ...
 );
 
 % 名前設定パラメータ
 params.experiment = struct(...
-    'name', 'colors' ... % ここを変更
+    'name', 'takerun' ... % ここを変更
 );
 params.experiment.datasetName = [params.experiment.name '_dataset'];
 params.experiment.dataName = params.experiment.name;
@@ -117,7 +115,7 @@ end
 
 % EEGデータ収集
 saveInterval = 60; % 保存間隔（秒）
-fileIndex = 1;
+filecspIndex = 1;
 lastSaveTime = tic;
 while isRunning
     [vec, ts] = inlet.pull_sample(); % データの受信
@@ -131,9 +129,21 @@ while isRunning
         str = char(receivedData');
 
         % 受信データに応じて処理を行う
-        if strcmp(str, 'Start')
-            disp('Movie Start');
-            labelButtonCallback(0);
+        if strcmp(str, '1')
+            disp('嬉');
+            labelButtonCallback(hObject, eventdata, 1);
+        elseif strcmp(str, '2')
+            disp('楽');
+            labelButtonCallback(hObject, eventdata, 2);
+        elseif strcmp(str, '3')
+            disp('哀');
+            labelButtonCallback(hObject, eventdata, 3);
+        elseif strcmp(str, '4')
+            disp('怒');
+            labelButtonCallback(hObject, eventdata, 4);
+        elseif strcmp(str, '5')
+            disp('安静');
+            labelButtonCallback(hObject, eventdata, 5);
         else
             disp(['Unknown command received: ', str]);
         end
@@ -143,10 +153,10 @@ while isRunning
     if elapsedTime >= saveInterval
         disp('60秒保存');
         % データをファイルに保存
-        save(sprintf('%s_data_%d.mat', params.experiment.dataName, fileIndex), 'eegData');
+        save(sprintf('%s_data_%d.mat', params.experiment.dataName, filecspIndex), 'eegData');
         eegData = []; % メモリから削除
         lastSaveTime = tic;
-        fileIndex = fileIndex + 1; % 連番を増加
+        filecspIndex = filecspIndex + 1; % 連番を増加
     end
 
     pause(0.0001); % 応答性を保つための短い休止
@@ -155,17 +165,17 @@ end
 % 最後の未保存データを保存
 if ~isempty(eegData)
     elapsedTime = toc(lastSaveTime);
-    save(sprintf('%s_data_%d.mat', params.experiment.dataName, fileIndex), 'eegData');
+    save(sprintf('%s_data_%d.mat', params.experiment.dataName, filecspIndex), 'eegData');
 end
 
 savedData = [];
-fileIndex = 1;
+filecspIndex = 1;
 while true
-    filename = sprintf('%s_data_%d.mat', params.experiment.dataName, fileIndex);
+    filename = sprintf('%s_data_%d.mat', params.experiment.dataName, filecspIndex);
     if exist(filename, 'file')
         load(filename, 'eegData');
         savedData = [savedData eegData];
-        fileIndex = fileIndex + 1;
+        filecspIndex = filecspIndex + 1;
     else
         break;
     end
@@ -190,40 +200,16 @@ preprocessedData = preprocessData(eegData(params.epocx.selectedChannels, :), par
 
 % ラベル作成
 if ~exist('stimulusStart', 'var') || isempty(stimulusStart)
-    % CSVファイルからデータを読み込む
-    videoStarts = readmatrix(csvFilename);
-    labels = readmatrix(params.stim.labelName);
-
-    % videoStartsの2列目（時間データ）のみを抽出
-    videoStarts = videoStarts(:, 2);
-
-    % 各動画の刺激回数を計算
-    stimulusVideo = floor(params.stim.videoDuration / params.stim.cycleDuration);
-
-    % 刺激開始タイミングを格納する配列を初期化
-    stimulusStart = [];
-
-    % 各動画に対して処理を行う
-    for i = 1:length(videoStarts)
-        videoStart = videoStarts(i);
-
-        % 現在の動画の刺激タイミングとラベルを計算
-        for j = 1:stimulusVideo
-            current_time = videoStart + params.stim.initialDelay + (j-1) * params.stim.cycleDuration;
-            label = labels(mod(j-1, length(labels)) + 1);
-            stimulusStart = [stimulusStart; label, current_time];
-        end
-    end
+    stimulusStart = readmatrix(csvFilename);
 end
 
-% エポック化
 % データセットの初期化
 nTrials = size(stimulusStart, 1);
 totalEpochs = nTrials * params.eeg.overlap;
 DataSet = cell(totalEpochs, 1);
 labels = zeros(totalEpochs, 1);
 
-epochIndex = 1;
+epochcspIndex = 1;
 for ii = 1:nTrials
     startIdx = round(params.eeg.Fs * stimulusStart(ii, 2)) + 1;
     endIdx = startIdx + params.eeg.Fs * params.eeg.windowSize - 1;
@@ -236,9 +222,9 @@ for ii = 1:nTrials
         
         % データの範囲チェック
         if epochEndIdx <= size(preprocessedData, 2)
-            DataSet{epochIndex} = preprocessedData(:, epochStartIdx:epochEndIdx);
-            labels(epochIndex) = stimulusStart(ii, 1);  % ラベルを保存
-            epochIndex = epochIndex + 1;
+            DataSet{epochcspIndex} = preprocessedData(:, epochStartIdx:epochEndIdx);
+            labels(epochcspIndex) = stimulusStart(ii, 1);  % ラベルを保存
+            epochcspIndex = epochcspIndex + 1;
         else
             warning('エポック %d-%d がデータの範囲外です。スキップします。', ii, jj);
         end
@@ -246,8 +232,8 @@ for ii = 1:nTrials
 end
 
 % 使用されなかったセルを削除
-DataSet = DataSet(1:epochIndex-1);
-labels = labels(1:epochIndex-1);
+DataSet = DataSet(1:epochcspIndex-1);
+labels = labels(1:epochcspIndex-1);
 
 % データの形状を確認
 disp(['エポック化されたデータセットの数: ', num2str(length(DataSet))]);
@@ -277,42 +263,38 @@ save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStar
 disp('データセットが更新されました。');
 
 
-%% 脳波データ解析
-% 全組み合わせの分類精度算出
-accuracyMatrix = zeros(length(uniqueLabels), length(uniqueLabels));
+%% CSPフィルター作成
+cspIndex = 1;
 for i = 1:(length(uniqueLabels))
     for j = i+1:(length(uniqueLabels))
         dataClassA = dataClass{i};
         dataClassB = dataClass{j};
-        labelClassA = labelClass{i};
-        labelClassB = labelClass{j};
                 
         % CSP特徴抽出
-        [cspClassA, cspClassB, cspFiltersAB] = processCSPData2Class(dataClassA, dataClassB);
-        allCSPFeatures = [cspClassA; cspClassB];
-        allLabels = [labelClassA; labelClassB];
-        
-        numClasses = 2;  % クラスAとクラスBの2クラス
-        [SVMDataSet, SVMLabels] = reorderData(allCSPFeatures, allLabels, numClasses);
-        
-        % 機械学習部分
-        X = SVMDataSet;
-        y = SVMLabels;
-        
-        [~, meanAccuracy] = runSVMAnalysis(X, y, params, K, params.modelType, params.useOptimization, 'Classifier 1-2');
-    
-        accuracyMatrix(i, j) = meanAccuracy;
-        accuracyMatrix(j, i) = meanAccuracy;
-        
-        close('all');
+        [~, ~, cspFilters{cspIndex}] = processCSPData2Class(dataClassA, dataClassB);
+        cspIndex = cspIndex+1;
     end
 end
 
-disp('Accuracy Matrix:');
-disp(accuracyMatrix);
+save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'cspFilters');
+disp('データセットが更新されました。');
 
-save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'accuracyMatrix');
-disp('Data saved successfully.');
+
+%% 特徴量抽出
+cspFeatures = extractIntegratedCSPFeatures(DataSet, cspFilters);
+
+save(params.experiment.datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'cspFilters', 'cspFeatures', 'labels');
+disp('データセットが更新されました。');
+
+%% 特徴分類
+X = cspFeatures;
+y = labels;
+
+classifierLabel = sprintf('Classifier %d-%d', uniqueLabels(1), uniqueLabels(2));
+[svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, classifierLabel);
+
+save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'cspFilters', 'cspFeatures', 'labels', 'svmMdl');
+disp('データセットが更新されました。');
 
 
 %% ボタン構成
@@ -366,12 +348,11 @@ function stopButtonCallback(hObject, eventdata)
 end
 
 % 動画・再生ボタン
-function labelButtonCallback(hObject, eventdata)
+function labelButtonCallback(hObject, eventdata, label)
     global t csv_file csvFilename; % グローバル変数の宣言
     % ラベルボタンのコールバック関数の内容をここに記述
     current_time = toc - t.StartDelay; % 経過時間の計算
     disp(current_time);
-    label = 0;
     fprintf(csv_file, '%d,%.3f\n', label, current_time);
     fclose(csv_file); % ファイルを閉じる
     csv_file = fopen(csvFilename, 'a'); % ファイルを追記モードで再度開く
