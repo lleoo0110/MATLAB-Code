@@ -44,7 +44,7 @@ params.eeg = struct(...
     'maxf', 30, ...
     'Fs', 256, ...
     'filtOrder', 1024, ...
-    'overlap', 4, ...
+    'overlap', 1, ...
     'windowSize', 2, ...
     'numFilter', 7, ...
     'K', 5 ...
@@ -58,8 +58,13 @@ params.varargin = struct(...
 );
 
 % 名前設定パラメータ
+params.stim = struct(...
+    'portNumber', 12345 ... % ここを変更
+);
+
+% 名前設定パラメータ
 params.experiment = struct(...
-    'name', 'takerun' ... % ここを変更
+    'name', 'test' ... % ここを変更
 );
 params.experiment.datasetName = [params.experiment.name '_dataset'];
 params.experiment.dataName = params.experiment.name;
@@ -67,7 +72,7 @@ params.experiment.csvFilename = [params.experiment.name '_label.csv'];
 
 % SVMパラメータ設定
 params.model = struct(...
-    'modelType', 'svm', ... % 'svm' or 'ecoc'
+    'modelType', 'ecoc', ... % 'svm' or 'ecoc'
     'useOptimization', false, ...
     'kernelFunctions', {{'linear', 'rbf', 'polynomial'}}, ...
     'kernelScale', [0.1, 1, 10], ...
@@ -131,19 +136,19 @@ while isRunning
         % 受信データに応じて処理を行う
         if strcmp(str, '1')
             disp('嬉');
-            labelButtonCallback(hObject, eventdata, 1);
+            labelButtonCallback(1);
         elseif strcmp(str, '2')
             disp('楽');
-            labelButtonCallback(hObject, eventdata, 2);
+            labelButtonCallback(2);
         elseif strcmp(str, '3')
             disp('哀');
-            labelButtonCallback(hObject, eventdata, 3);
+            labelButtonCallback(3);
         elseif strcmp(str, '4')
             disp('怒');
-            labelButtonCallback(hObject, eventdata, 4);
-        elseif strcmp(str, '5')
+            labelButtonCallback(4);
+        elseif strcmp(str, '0')
             disp('安静');
-            labelButtonCallback(hObject, eventdata, 5);
+            labelButtonCallback(5);
         else
             disp(['Unknown command received: ', str]);
         end
@@ -348,7 +353,7 @@ function stopButtonCallback(hObject, eventdata)
 end
 
 % 動画・再生ボタン
-function labelButtonCallback(hObject, eventdata, label)
+function labelButtonCallback(label)
     global t csv_file csvFilename; % グローバル変数の宣言
     % ラベルボタンのコールバック関数の内容をここに記述
     current_time = toc - t.StartDelay; % 経過時間の計算

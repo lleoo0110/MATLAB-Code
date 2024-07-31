@@ -48,7 +48,7 @@ K = 10;
 % stimulusStart = readmatrix(csvFilename); % 音声フィードバック無
 
 % データセットの名前を指定
-name = 'spatial'; % ここを変更
+name = 'ecoc_optimization'; % ここを変更
 datasetName = [name '_dataset'];
 dataName = name;
 csvFilename = [name '_label.csv'];
@@ -56,8 +56,8 @@ csvFilename2 = [name '_labelWithFeedback.csv'];
 
 % SVMパラメータ設定
 params = struct();
-params.modelType = 'svm'; % 'svm' or 'ecoc'
-params.useOptimization = false;
+params.modelType = 'ecoc'; % 'svm' or 'ecoc'
+params.useOptimization = true;
 params.kernelFunctions = {'linear', 'rbf', 'polynomial'};
 params.kernelScale = [0.1, 1, 10];
 params.boxConstraint = [0.1, 1, 10, 100];

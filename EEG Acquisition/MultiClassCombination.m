@@ -55,13 +55,13 @@ params.stim = struct(...
     'videoDuration', 5 * 60, ... % 動画の全体長（秒）
     'initialDelay', 5, ... % 動画開始から最初の刺激までの遅延（秒）
     'cycleDuration', 10, ... % 1サイクルの長さ（秒）
-    'labelName', 'ec_mano_label', ...
-    'portNumber', 12354 ...
+    'labelName', 'Experiment_Shiori', ...
+    'portNumber', 12345 ...
 );
 
 % 名前設定パラメータ
 params.experiment = struct(...
-    'name', 'takerun' ... % ここを変更
+    'name', 'test' ... % ここを変更
 );
 params.experiment.datasetName = [params.experiment.name '_dataset'];
 params.experiment.dataName = params.experiment.name;
@@ -131,7 +131,7 @@ while isRunning
         str = char(receivedData');
 
         % 受信データに応じて処理を行う
-        if strcmp(str, 'Start')
+        if strcmp(str, 'MovieStart')
             disp('Movie Start');
             labelButtonCallback(0);
         else

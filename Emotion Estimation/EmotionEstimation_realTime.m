@@ -1,3 +1,36 @@
+%% データ受信
+% ライブラリーの初期化
+try
+    lib = lsl_loadlib(env_translatepath('dependencies:/liblsl-Matlab/bin'));
+catch
+    lib = lsl_loadlib();
+end
+
+% resolve a stream...
+disp('Resolving an EEG stream...');
+result = {};
+while isempty(result)
+    streamName = 'EmotivDataStream-EEG'; % name of stream. the name is one of vale EmotivDataStream-Motion,
+                                         % EmotivDataStream-EEG , 'EmotivDataStream-Performance Metrics'
+    result = lsl_resolve_byprop(lib,'name', streamName); 
+end
+
+% create a new inlet
+disp('Opening an inlet...');
+inlet = lsl_inlet(result{1});
+
+% get the full stream info (including custom meta-data) and dissect it
+inf = inlet.info();
+fprintf('The stream''s XML meta-data is: \n');
+fprintf([inf.as_xml() '\n']);
+fprintf(['The manufacturer is: ' inf.desc().child_value('manufacturer') '\n']);
+fprintf('The channel labels are as follows:\n');
+ch = inf.desc().child('channels').child('channel');
+for k = 1:inf.channel_count()
+    fprintf(['  ' ch.child_value('label') '\n']);
+    ch = ch.next_sibling();
+end
+
 %% パラメータ設定
 disp('Now receiving data...');
 global numFilter isRunning portNumber
@@ -53,13 +86,12 @@ dataBuffer = []; % データバッファの初期化
 while isRunning
     [vec, ts] = inlet.pull_sample(); % データの受信
     vec = vec(:); % 1x19の行ベクトルを19x1の列ベクトルに変換
-    eegData = [eegData vec];
 
     % データバッファの更新（チャンネルごとにデータを追加）
     if isempty(dataBuffer)
-        dataBuffer = eegData; % 最初のデータセットの場合
+        dataBuffer = vec; % 最初のデータセットの場合
     else
-        dataBuffer = [dataBuffer eegData]; % データを追加
+        dataBuffer = [dataBuffer vec]; % データを追加
     end
       
     if size(dataBuffer, 2) >= samplesPerWindow  
