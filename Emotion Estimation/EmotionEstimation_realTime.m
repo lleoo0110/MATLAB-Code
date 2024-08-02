@@ -142,6 +142,8 @@ while isRunning
                 UNSender([0, 100, 0, 0]);
             elseif mostFrequent == 4
                 UNSender([0, 0, 100, 0]);
+            else
+                UNSender([50, 50, 50, 50]);
             end
         end
          
