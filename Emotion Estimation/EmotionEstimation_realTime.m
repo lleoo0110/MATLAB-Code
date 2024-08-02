@@ -82,8 +82,13 @@ stepSamples = params.experiment.stepSize * params.eeg.Fs; % ステップサイ�
 % GUIの作成と表示
 createSaveDataGUI();
 dataBuffer = []; % データバッファの初期化
-
+% 結果とタイムスタンプを保存するための配列を初期化
+resultHistory = zeros(1, 15);
+timeHistory = zeros(1, 15);
+currentIndex = 1;
 while isRunning
+    % 現在の時刻を取得
+    currentTime = now;
     [vec, ts] = inlet.pull_sample(); % データの受信
     vec = vec(:); % 1x19の行ベクトルを19x1の列ベクトルに変換
 
@@ -108,7 +113,37 @@ while isRunning
         
         % Unityへのデータ通信
         disp(svmOutput);
-        udpNumSender(svmOutput);
+        
+        % 結果とタイムスタンプを履歴に追加
+        resultHistory(currentIndex) = svmOutput;
+        timeHistory(currentIndex) = currentTime;
+        currentIndex = mod(currentIndex + 1, 15);
+        if currentIndex == 0
+            currentIndex = 15;
+        end
+
+        % Unityへのデータ通信
+        disp(svmOutput);
+
+        % 直近15秒のデータのみを使用
+        recentIndices = find(currentTime - timeHistory <= 15/86400); % 15秒をMATLABの日付形式に変換
+        recentResults = resultHistory(recentIndices);
+
+        % 最頻値を計算（直近15秒のデータのみ使用）
+        if ~isempty(recentResults)
+            mostFrequent = mode(recentResults);
+
+            % 感情推定結果送信（最頻値に基づく）
+            if mostFrequent == 1
+                UNSender([100, 0, 0, 0]);
+            elseif mostFrequent == 2
+                UNSender([0, 0, 0, 100]);
+            elseif mostFrequent == 3
+                UNSender([0, 100, 0, 0]);
+            elseif mostFrequent == 4
+                UNSender([0, 0, 100, 0]);
+            end
+        end
          
         % データバッファの更新
         dataBuffer = dataBuffer(:, (stepSamples+1):end); % オーバーラップを保持
