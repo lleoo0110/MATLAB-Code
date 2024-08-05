@@ -33,7 +33,7 @@ end
 
 
 %% パラメータ設定
-global isRunning Ch numFilter csvFilename
+global isRunning Ch numFilter csvFilename isDataCollectionEnabled;
 
 % メインパラメータ構造体の初期化
 params = struct();
@@ -59,12 +59,12 @@ params.varargin = struct(...
 
 % 名前設定パラメータ
 params.stim = struct(...
-    'portNumber', 12345 ... % ここを変更
+    'portNumber', 12354 ... % ここを変更
 );
 
 % 名前設定パラメータ
 params.experiment = struct(...
-    'name', 'test' ... % ここを変更
+    'name', 'uchihashi' ... % ここを変更
 );
 params.experiment.datasetName = [params.experiment.name '_dataset'];
 params.experiment.dataName = params.experiment.name;
@@ -90,6 +90,7 @@ isRunning = false;
 Ch = params.epocx.channels;
 numFilter = params.eeg.numFilter;
 csvFilename = params.experiment.csvFilename;
+isDataCollectionEnabled = false; % 初期状態はOFF
 
 
 %% 脳波データ計測
@@ -127,7 +128,7 @@ while isRunning
     vec = vec(:); % 1x19の行ベクトルを19x1の列ベクトルに変換
     eegData = [eegData vec];
     
-    if udpSocket.BytesAvailable > 0
+    if udpSocket.BytesAvailable > 0 && isDataCollectionEnabled
         % データを受信
         receivedData = fread(udpSocket, udpSocket.BytesAvailable, 'uint8');
         % 受信データを文字列に変換
@@ -240,18 +241,20 @@ end
 DataSet = DataSet(1:epochcspIndex-1);
 labels = labels(1:epochcspIndex-1);
 
-% データの形状を確認
-disp(['エポック化されたデータセットの数: ', num2str(length(DataSet))]);
-disp(['各エポックのサイズ: ', num2str(size(DataSet{1}))]);
+% データ拡張
+[augmentedData, augmentedLabels] = augmentEEGData(DataSet, labels, params.varargin);
 
+% データの形状を確認
+disp(['エポック化されたデータセットの数: ', num2str(length(augmentedData))]);
+disp(['各エポックのサイズ: ', num2str(size(augmentedData{1}))]);
 
 % 各ラベルに対応するデータを抽出
-uniqueLabels = unique(labels);
+uniqueLabels = unique(augmentedLabels);
 labelData = cell(length(uniqueLabels), 1);
 
 % データセットをラベルごとに分類
 for i = 1:length(uniqueLabels)
-    labelData{i} = DataSet(labels == uniqueLabels(i), :);
+    labelData{i} = augmentedData(augmentedLabels == uniqueLabels(i), :);
 end
 
 dataClass = cell(length(uniqueLabels), 1);
@@ -262,7 +265,6 @@ for i = 1:length(uniqueLabels)
     labelClass{i,1} = repmat(i, size(dataClass{i}, 1), 1);
 end
 
-
 % データセットを保存
 save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart');
 disp('データセットが更新されました。');
@@ -270,8 +272,8 @@ disp('データセットが更新されました。');
 
 %% CSPフィルター作成
 cspIndex = 1;
-for i = 1:(length(uniqueLabels)-1)
-    for j = i+1:(length(uniqueLabels)-1)
+for i = 1:(length(uniqueLabels))
+    for j = i+1:(length(uniqueLabels))
         dataClassA = dataClass{i};
         dataClassB = dataClass{j};
                 
@@ -284,27 +286,29 @@ end
 save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'cspFilters');
 disp('データセットが更新されました。');
 
-
 %% 特徴量抽出
-cspFeatures = extractIntegratedCSPFeatures(DataSet, cspFilters);
+cspFeatures = extractIntegratedCSPFeatures(augmentedData, cspFilters);
 
-save(params.experiment.datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'cspFilters', 'cspFeatures', 'labels');
+save(params.experiment.datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'cspFilters', 'cspFeatures', 'augmentedLabels');
 disp('データセットが更新されました。');
+
 
 %% 特徴分類
 X = cspFeatures;
-y = labels;
+y = augmentedLabels;
 
-classifierLabel = sprintf('4クラス分類');
-[svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, classifierLabel);
+t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
+svmMdl = fitcecoc(X, y, 'Learners', t);
 
-save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'cspFilters', 'cspFeatures', 'labels', 'svmMdl');
+% [svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, '4クラス分類');
+
+save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'cspFilters', 'cspFeatures', 'augmentedLabels', 'svmMdl');
 disp('データセットが更新されました。');
 
 
 %% ボタン構成
 function createMovieStartGUI()
-    global t csv_file label_name startButton stopButton labelButton csvFilename; % グローバル変数の宣言
+    global t csv_file label_name startButton stopButton labelButton toggleButton csvFilename; % グローバル変数の宣言
     % GUIの作成と設定をここに記述
     fig = figure('Position', [100 100 300 200], 'MenuBar', 'none', 'ToolBar', 'none');
     
@@ -315,7 +319,10 @@ function createMovieStartGUI()
         'Position', [150 100 70 30], 'Callback', @stopButtonCallback, 'Enable', 'off');
     
     labelButton = uicontrol('Style', 'pushbutton', 'String', 'Label', ...
-        'Position', [100 50 70 30], 'Callback', @labelButtonCallback, 'Enable', 'off');
+        'Position', [50 50 70 30], 'Callback', @labelButtonCallback, 'Enable', 'off');
+    
+    toggleButton = uicontrol('Style', 'pushbutton', 'String', 'Toggle', ...
+        'Position', [150 50 70 30], 'Callback', @toggleDataCollection, 'Enable', 'off');
     
     % 他の初期化コードをここに記述
     label_name = 'stimulus';
@@ -325,7 +332,7 @@ end
 
 % 脳波データ記録開始ボタン
 function startButtonCallback(hObject, eventdata)
-    global isRunning t startButton stopButton labelButton; % グローバル変数の宣言
+    global isRunning t startButton stopButton labelButton toggleButton; % グローバル変数の宣言
     
     % 実行中
     disp('データ収集中...指示に従ってください...');
@@ -334,12 +341,13 @@ function startButtonCallback(hObject, eventdata)
     startButton.Enable = 'off';
     stopButton.Enable = 'on';
     labelButton.Enable = 'on';
+    toggleButton.Enable = 'on';
     isRunning = true;
 end
 
 % 脳波データ記録停止ボタン
 function stopButtonCallback(hObject, eventdata)
-    global isRunning t startButton stopButton labelButton; % グローバル変数の宣言
+    global isRunning t startButton stopButton labelButton toggleButton; % グローバル変数の宣言
     
     isRunning = false;
     % ストップボタンのコールバック関数の内容をここに記述
@@ -347,6 +355,7 @@ function stopButtonCallback(hObject, eventdata)
     startButton.Enable = 'on';
     stopButton.Enable = 'off';
     labelButton.Enable = 'off';
+    toggleButton.Enable = 'off';
 
     % プログラムの終了フラグを更新してGUIを閉じる
     close all;
@@ -361,6 +370,16 @@ function labelButtonCallback(label)
     fprintf(csv_file, '%d,%.3f\n', label, current_time);
     fclose(csv_file); % ファイルを閉じる
     csv_file = fopen(csvFilename, 'a'); % ファイルを追記モードで再度開く
+end
+
+function toggleDataCollection(hObject, ~)
+    global isDataCollectionEnabled;
+    isDataCollectionEnabled = ~isDataCollectionEnabled;
+    if isDataCollectionEnabled
+        disp('データ収集を開始しました．');
+    else
+        disp('データ収集を停止しました．');
+    end
 end
 
 % タイマー呼び出し中処理
