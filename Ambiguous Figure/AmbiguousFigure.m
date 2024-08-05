@@ -99,11 +99,6 @@ preprocessedData = [];
 labels = [];
 stimulusStart = [];
 
-% UDPソケットを作成
-udpSocket = udp('127.0.0.1', 'LocalPort', params.experiment.portNumber);
-% 受信データがある場合に処理を行う    
-fopen(udpSocket);
-
 while ~isRunning
     % 待機時間
     pause(0.1);
@@ -158,11 +153,6 @@ eegData = savedData; % EEGデータの保存
 % データセットを保存
 save(params.experiment.datasetName, 'eegData');
 disp('データセットが保存されました。');
-
-% UDPソケットを閉じる
-fclose(udpSocket);
-delete(udpSocket);
-clear udpSocket;
 
 
 %% 脳波データの前処理

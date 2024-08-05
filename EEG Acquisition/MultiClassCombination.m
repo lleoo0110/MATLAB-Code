@@ -61,7 +61,7 @@ params.stim = struct(...
 
 % 名前設定パラメータ
 params.experiment = struct(...
-    'name', 'test' ... % ここを変更
+    'name', 'inooooue' ... % ここを変更
 );
 params.experiment.datasetName = [params.experiment.name '_dataset'];
 params.experiment.dataName = params.experiment.name;

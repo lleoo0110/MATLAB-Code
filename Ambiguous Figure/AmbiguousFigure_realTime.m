@@ -64,15 +64,16 @@ params.eeg = struct(...
     'maxf', 30, ...
     'Fs', 256, ...
     'filtOrder', 1024, ...
-    'overlap', 1, ...
-    'windowSize', 2, ...
-    'numFilter', 7, ...
-    'K', 5 ...
+    'numFilter', 7 ...
 );
 
 % 実験用パラメータ
 params.experiment = struct(...
-    'portNumber', 12354 ...
+    'portNumber', 12354, ...
+    'threshold', 0.5, ...
+    'windowSize', 15, ...
+    'stepSize', 1, ...
+    'threshold', 0.5 ...
 );
 
 % EPOCX設定（14Ch）
@@ -82,10 +83,12 @@ params.epocx = struct(...
 );
 
 % グローバル変数の設定
-isRunning = false;
+isRunning = true;
 numFilter = params.eeg.numFilter;
 portNumber = params.experiment.portNumber;
 Ch = params.epocx.channels;
+samplesPerWindow = params.experiment.windowSize * params.eeg.Fs; % ウィンドウ内のサンプル数
+stepSamples = params.experiment.stepSize * params.eeg.Fs; % ステップサイズに相当するサンプル数
 
 
 %% 脳波データ計測
@@ -107,16 +110,17 @@ while isRunning
     
     if size(dataBuffer, 2) >= samplesPerWindow  
         preprocessedData = preprocessData(dataBuffer(params.epocx.selectedChannels, 1:samplesPerWindow), params.eeg.Fs, params.eeg.filtOrder, params.eeg.minf, params.eeg.maxf);
-        analysisData = preprocessedData(:, end-Fs*2+1:end);
+        analysisData = preprocessedData(:, end-params.eeg.Fs*2+1:end);
                 
         % 特徴量抽出
-        features = extractCSPFeatures(analysisData, cspFilters);
+        % features = extractCSPFeatures(analysisData, cspFilters)';
+         features = extractIntegratedCSPFeatures(analysisData, cspFilters);
         
         % SVMモデルから予想を出力
         [preLabel, preScore] = predict(svmMdl, features);
         
         % 閾値による決定
-        if preScore(1,1) >= threshold
+        if preScore(1,1) >= params.experiment.threshold
             svm_output = 1;  % 正のクラス
         else
             svm_output = 2;  % 負のクラス

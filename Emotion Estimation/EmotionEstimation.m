@@ -271,8 +271,8 @@ disp('データセットが更新されました。');
 
 %% CSPフィルター作成
 cspIndex = 1;
-for i = 1:(length(uniqueLabels))
-    for j = i+1:(length(uniqueLabels))
+for i = 1:(length(uniqueLabels)-1)
+    for j = i+1:(length(uniqueLabels)-1)
         dataClassA = dataClass{i};
         dataClassB = dataClass{j};
                 
@@ -296,7 +296,7 @@ disp('データセットが更新されました。');
 X = cspFeatures;
 y = labels;
 
-classifierLabel = sprintf('Classifier %d-%d', uniqueLabels(1), uniqueLabels(2));
+classifierLabel = sprintf('4クラス分類');
 [svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, classifierLabel);
 
 save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'cspFilters', 'cspFeatures', 'labels', 'svmMdl');
