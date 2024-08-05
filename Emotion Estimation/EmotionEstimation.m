@@ -59,12 +59,12 @@ params.varargin = struct(...
 
 % 名前設定パラメータ
 params.stim = struct(...
-    'portNumber', 12354 ... % ここを変更
+    'portNumber', 12345 ... % ここを変更
 );
 
 % 名前設定パラメータ
 params.experiment = struct(...
-    'name', 'uchihashi' ... % ここを変更
+    'name', 'test' ... % ここを変更
 );
 params.experiment.datasetName = [params.experiment.name '_dataset'];
 params.experiment.dataName = params.experiment.name;
@@ -289,7 +289,7 @@ disp('データセットが更新されました。');
 %% 特徴量抽出
 cspFeatures = extractIntegratedCSPFeatures(augmentedData, cspFilters);
 
-save(params.experiment.datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'cspFilters', 'cspFeatures', 'augmentedLabels');
+save(params.experiment.datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'cspFilters', 'cspFeatures', 'labels');
 disp('データセットが更新されました。');
 
 
@@ -297,12 +297,9 @@ disp('データセットが更新されました。');
 X = cspFeatures;
 y = augmentedLabels;
 
-t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
-svmMdl = fitcecoc(X, y, 'Learners', t);
+[svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, '4クラス分類');
 
-% [svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, '4クラス分類');
-
-save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'cspFilters', 'cspFeatures', 'augmentedLabels', 'svmMdl');
+save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'cspFilters', 'cspFeatures', 'labels', 'svmMdl');
 disp('データセットが更新されました。');
 
 
@@ -321,8 +318,8 @@ function createMovieStartGUI()
     labelButton = uicontrol('Style', 'pushbutton', 'String', 'Label', ...
         'Position', [50 50 70 30], 'Callback', @labelButtonCallback, 'Enable', 'off');
     
-    toggleButton = uicontrol('Style', 'pushbutton', 'String', 'Toggle', ...
-        'Position', [150 50 70 30], 'Callback', @toggleDataCollection, 'Enable', 'off');
+    toggleButton = uicontrol('Style', 'pushbutton', 'String', 'Label', ...
+        'Position', [150 50 70 30], 'Callback', @labelButtonCallback, 'Enable', 'off');
     
     % 他の初期化コードをここに記述
     label_name = 'stimulus';
@@ -332,7 +329,7 @@ end
 
 % 脳波データ記録開始ボタン
 function startButtonCallback(hObject, eventdata)
-    global isRunning t startButton stopButton labelButton toggleButton; % グローバル変数の宣言
+    global isRunning t startButton stopButton labelButton; % グローバル変数の宣言
     
     % 実行中
     disp('データ収集中...指示に従ってください...');
@@ -341,13 +338,12 @@ function startButtonCallback(hObject, eventdata)
     startButton.Enable = 'off';
     stopButton.Enable = 'on';
     labelButton.Enable = 'on';
-    toggleButton.Enable = 'on';
     isRunning = true;
 end
 
 % 脳波データ記録停止ボタン
 function stopButtonCallback(hObject, eventdata)
-    global isRunning t startButton stopButton labelButton toggleButton; % グローバル変数の宣言
+    global isRunning t startButton stopButton labelButton; % グローバル変数の宣言
     
     isRunning = false;
     % ストップボタンのコールバック関数の内容をここに記述
@@ -355,7 +351,6 @@ function stopButtonCallback(hObject, eventdata)
     startButton.Enable = 'on';
     stopButton.Enable = 'off';
     labelButton.Enable = 'off';
-    toggleButton.Enable = 'off';
 
     % プログラムの終了フラグを更新してGUIを閉じる
     close all;
