@@ -46,7 +46,7 @@ numFilter = 7;
 K = 10;
 
 % データセットの名前を指定
-name = 'spatial'; % ここを変更
+name = '0721MMI_asaki'; % ここを変更
 datasetName = [name '_thresholds_dataset'];
 dataName = [name '_thresholds'];
 csvFilename = [name '_thresholds_label.csv'];
