@@ -288,6 +288,7 @@ disp('データセットが更新されました。');
 
 %% 特徴量抽出
 cspFeatures = extractIntegratedCSPFeatures(augmentedData, cspFilters);
+% cspFeatures = extractIntegratedCSPFeatures(DataSet, cspFilters);
 
 save(params.experiment.datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'cspFilters', 'cspFeatures', 'augmentedLabels');
 disp('データセットが更新されました。');
@@ -296,8 +297,9 @@ disp('データセットが更新されました。');
 %% 特徴分類
 X = cspFeatures;
 y = augmentedLabels;
+% y = labels;
 
-[svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, '4クラス分類');
+[svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, '5クラス分類');
 
 save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'cspFilters', 'cspFeatures', 'augmentedLabels', 'svmMdl');
 disp('データセットが更新されました。');
