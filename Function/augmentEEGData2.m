@@ -90,7 +90,7 @@ end
 function out = freqModulation(data, range)
     mod_factor = range(1) + (range(2) - range(1)) * rand;
     L = length(data);
-    t = (0:L-1)'/L;
+    t = (0:L-1)/L;
     phase = 2*pi*t*mod_factor;
     out = real(hilbert(data) .* exp(1i*phase));
 end

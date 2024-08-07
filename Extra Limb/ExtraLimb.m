@@ -267,7 +267,7 @@ disp(['エポック化されたデータセットの数: ', num2str(length(DataS
 disp(['各エポックのサイズ: ', num2str(size(DataSet{1}))]);
 
 % データ拡張
-% [augmentedData, augmentedLabels] = augmentEEGData(DataSet, labels, params.varargin);
+% [augmentedData, augmentedLabels] = augmentEEGData2(DataSet, labels, params.varargin);
 % for i = 1:length(uniqueLabels)
 %     labelData{i} = augmentedData(augmentedLabels == uniqueLabels(i), :);
 % end

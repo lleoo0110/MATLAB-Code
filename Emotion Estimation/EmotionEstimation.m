@@ -41,7 +41,7 @@ params = struct();
 % EEG解析パラメータ
 params.eeg = struct(...
     'minf', 1, ...
-    'maxf', 30, ...
+    'maxf', 40, ...
     'Fs', 256, ...
     'filtOrder', 1024, ...
     'overlap', 1, ...
@@ -54,12 +54,18 @@ params.eeg = struct(...
 params.varargin = struct(...
     'numAugmentations', 10, ...
     'maxShiftRatio', 0.2, ...
-    'noiseLevel', 0.1 ...
+    'noiseLevel', 0.1, ...
+    'freqModRange', [0.95, 1.05], ...
+    'ampScaleRange', [0.8, 1.2], ...
+    'channelSwapProb', 0.2, ...
+    'segmentMixProb', 0.3, ...
+    'filterRange', [0.5, 30], ...
+    'baselineWanderAmp', 0.05 ...
 );
 
 % ポート番号設定パラメータ
 params.stim = struct(...
-    'portNumber', 12345 ... % ここを変更
+    'portNumber', 12354 ... % ここを変更
 );
 
 % 名前設定パラメータ
@@ -222,10 +228,10 @@ for ii = 1:nTrials
     
     % エポック化
     for jj = 1:params.eeg.overlap
-        shiftAmount = round((jj - 1) * params.eeg.Fs * 1);  % 1秒ずつ時間窓をずらす
-        epochStartIdx = startIdx + shiftAmount;
-        epochEndIdx = epochStartIdx + params.eeg.Fs * params.eeg.windowSize - 1;
-        
+            shiftAmount = round((jj - 1) * params.eeg.Fs * 1);  % 1秒ずつ時間窓をずらす
+            epochStartIdx = startIdx + shiftAmount;
+            epochEndIdx = epochStartIdx + params.eeg.Fs * params.eeg.windowSize - 1;
+
         % データの範囲チェック
         if epochEndIdx <= size(preprocessedData, 2)
             DataSet{epochcspIndex} = preprocessedData(:, epochStartIdx:epochEndIdx);
@@ -246,26 +252,8 @@ uniqueLabels = unique(labels);
 labelData = cell(length(uniqueLabels), 1);
 
 % オリジナルデータセット
-for i = 1:length(uniqueLabels)
-    labelData{i} = DataSet(labels == uniqueLabels(i), :);
-end
-
-dataClass = cell(length(uniqueLabels), 1);
-labelClass = cell(length(uniqueLabels), 1);
-
-for i = 1:length(uniqueLabels)
-    dataClass{i} = labelData{uniqueLabels == i};
-    labelClass{i,1} = repmat(i, size(dataClass{i}, 1), 1);
-end
-
-% データの形状を確認
-disp(['エポック化されたデータセットの数: ', num2str(length(DataSet))]);
-disp(['各エポックのサイズ: ', num2str(size(DataSet{1}))]);
-
-% データ拡張
-% [augmentedData, augmentedLabels] = augmentEEGData(DataSet, labels, params.varargin);
 % for i = 1:length(uniqueLabels)
-%     labelData{i} = augmentedData(augmentedLabels == uniqueLabels(i), :);
+%     labelData{i} = DataSet(labels == uniqueLabels(i), :);
 % end
 % 
 % dataClass = cell(length(uniqueLabels), 1);
@@ -277,8 +265,26 @@ disp(['各エポックのサイズ: ', num2str(size(DataSet{1}))]);
 % end
 % 
 % % データの形状を確認
-% disp(['エポック化されたデータセットの数: ', num2str(length(augmentedData))]);
-% disp(['各エポックのサイズ: ', num2str(size(augmentedData{1}))]);
+% disp(['エポック化されたデータセットの数: ', num2str(length(DataSet))]);
+% disp(['各エポックのサイズ: ', num2str(size(DataSet{1}))]);
+
+% データ拡張
+[augmentedData, augmentedLabels] = augmentEEGData2(DataSet, labels, params.varargin);
+for i = 1:length(uniqueLabels)
+    labelData{i} = augmentedData(augmentedLabels == uniqueLabels(i), :);
+end
+
+dataClass = cell(length(uniqueLabels), 1);
+labelClass = cell(length(uniqueLabels), 1);
+
+for i = 1:length(uniqueLabels)
+    dataClass{i} = labelData{uniqueLabels == i};
+    labelClass{i,1} = repmat(i, size(dataClass{i}, 1), 1);
+end
+
+% データの形状を確認
+disp(['エポック化されたデータセットの数: ', num2str(length(augmentedData))]);
+disp(['各エポックのサイズ: ', num2str(size(augmentedData{1}))]);
 
 % データセットを保存
 save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart');
@@ -302,8 +308,8 @@ save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStar
 disp('データセットが更新されました。');
 
 %% 特徴量抽出
-% cspFeatures = extractIntegratedCSPFeatures(augmentedData, cspFilters);
-cspFeatures = extractIntegratedCSPFeatures(DataSet, cspFilters);
+cspFeatures = extractIntegratedCSPFeatures(augmentedData, cspFilters);
+% cspFeatures = extractIntegratedCSPFeatures(DataSet, cspFilters);
 
 save(params.experiment.datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'cspFilters', 'cspFeatures', 'augmentedLabels');
 disp('データセットが更新されました。');
@@ -311,10 +317,12 @@ disp('データセットが更新されました。');
 
 %% 特徴分類
 X = cspFeatures;
-% y = augmentedLabels;
-y = labels;
+y = augmentedLabels;
+% y = labels;
 
 [svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, '5クラス分類');
+% t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
+% svmMdl = fitcecoc(X, y, 'Learners', t);
 
 save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'cspFilters', 'cspFeatures', 'augmentedLabels', 'svmMdl');
 disp('データセットが更新されました。');

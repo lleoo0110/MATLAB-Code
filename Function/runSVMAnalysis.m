@@ -7,7 +7,7 @@ function [svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params, K, modelType, use
     if strcmp(modelType, 'svm')
         if ~useOptimization
             accuracies = zeros(20, 1);
-            for i = 1:100
+            for i = 1:5
                 svmMdl = fitcsvm(X, y, 'Standardize', true, 'ClassNames', uniqueClasses);
                 svmMdl = fitPosterior(svmMdl);
                 CVSVMModel = crossval(svmMdl, 'KFold', K);
@@ -26,7 +26,7 @@ function [svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params, K, modelType, use
     elseif strcmp(modelType, 'ecoc')
         if ~useOptimization
             accuracies = zeros(20, 1);
-            for i = 1:100
+            for i = 1:5
                 t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
                 svmMdl = fitcecoc(X, y, 'Learners', t);
                 CVSVMModel = crossval(svmMdl, 'KFold', K);
