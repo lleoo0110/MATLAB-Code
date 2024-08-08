@@ -250,26 +250,8 @@ uniqueLabels = unique(labels);
 labelData = cell(length(uniqueLabels), 1);
 
 % オリジナルデータセット
-for i = 1:length(uniqueLabels)
-    labelData{i} = DataSet(labels == uniqueLabels(i), :);
-end
-
-dataClass = cell(length(uniqueLabels), 1);
-labelClass = cell(length(uniqueLabels), 1);
-
-for i = 1:length(uniqueLabels)
-    dataClass{i} = labelData{uniqueLabels == i};
-    labelClass{i,1} = repmat(i, size(dataClass{i}, 1), 1);
-end
-
-% データの形状を確認
-disp(['エポック化されたデータセットの数: ', num2str(length(DataSet))]);
-disp(['各エポックのサイズ: ', num2str(size(DataSet{1}))]);
-
-% データ拡張
-% [augmentedData, augmentedLabels] = augmentEEGData2(DataSet, labels, params.varargin);
 % for i = 1:length(uniqueLabels)
-%     labelData{i} = augmentedData(augmentedLabels == uniqueLabels(i), :);
+%     labelData{i} = DataSet(labels == uniqueLabels(i), :);
 % end
 % 
 % dataClass = cell(length(uniqueLabels), 1);
@@ -281,8 +263,26 @@ disp(['各エポックのサイズ: ', num2str(size(DataSet{1}))]);
 % end
 % 
 % % データの形状を確認
-% disp(['エポック化されたデータセットの数: ', num2str(length(augmentedData))]);
-% disp(['各エポックのサイズ: ', num2str(size(augmentedData{1}))]);
+% disp(['エポック化されたデータセットの数: ', num2str(length(DataSet))]);
+% disp(['各エポックのサイズ: ', num2str(size(DataSet{1}))]);
+
+% データ拡張
+[augmentedData, augmentedLabels] = augmentEEGData2(DataSet, labels, params.varargin);
+for i = 1:length(uniqueLabels)
+    labelData{i} = augmentedData(augmentedLabels == uniqueLabels(i), :);
+end
+
+dataClass = cell(length(uniqueLabels), 1);
+labelClass = cell(length(uniqueLabels), 1);
+
+for i = 1:length(uniqueLabels)
+    dataClass{i} = labelData{uniqueLabels == i};
+    labelClass{i,1} = repmat(i, size(dataClass{i}, 1), 1);
+end
+
+% データの形状を確認
+disp(['エポック化されたデータセットの数: ', num2str(length(augmentedData))]);
+disp(['各エポックのサイズ: ', num2str(size(augmentedData{1}))]);
 
 % データセットを保存
 save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart');
@@ -307,17 +307,22 @@ disp('データセットが更新されました。');
 
 
 %% 特徴量抽出
-% cspFeatures = extractIntegratedCSPFeatures(augmentedData, cspFilters);
-cspFeatures = extractIntegratedCSPFeatures(DataSet, cspFilters);
+cspFeatures = extractIntegratedCSPFeatures(augmentedData, cspFilters);
+% cspFeatures = extractIntegratedCSPFeatures(DataSet, cspFilters);
 
 save(params.experiment.datasetName, 'eegData', 'preprocessedData',  'stimulusStart', 'cspFilters', 'cspFeatures', 'augmentedLabels');
 disp('データセットが更新されました。');
 
 %% 特徴分類
 X = cspFeatures;
-y = labels;
+y = augmentedLabels;
+% y = labels;
 
-[svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, '複数クラス分類');
+% [svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, '複数クラス分類');
+
+% 分類器作成のみ
+t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
+svmMdl = fitcecoc(X, y, 'Learners', t);
 
 save(params.experiment.datasetName, 'eegData', 'preprocessedData', 'stimulusStart', 'cspFilters', 'cspFeatures', 'labels', 'svmMdl');
 disp('Data saved successfully.');

@@ -70,7 +70,7 @@ params.stim = struct(...
 
 % 名前設定パラメータ
 params.experiment = struct(...
-    'name', 'test' ... % ここを変更
+    'name', 'test2' ... % ここを変更
 );
 params.experiment.datasetName = [params.experiment.name '_dataset'];
 params.experiment.dataName = params.experiment.name;
@@ -155,7 +155,7 @@ while isRunning
             labelButtonCallback(4);
         elseif strcmp(str, '0')
             disp('安静');
-            labelButtonCallback(5);
+            % labelButtonCallback(5);
         else
             disp(['Unknown command received: ', str]);
         end
@@ -320,7 +320,7 @@ X = cspFeatures;
 y = augmentedLabels;
 % y = labels;
 
-[svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, '5クラス分類');
+[svmMdl, meanAccuracy] = runSVMAnalysis(X, y, params.model, params.eeg.K, params.model.modelType, params.model.useOptimization, '4クラス分類');
 % t = templateSVM('KernelFunction', 'rbf', 'KernelScale', 'auto');
 % svmMdl = fitcecoc(X, y, 'Learners', t);
 
