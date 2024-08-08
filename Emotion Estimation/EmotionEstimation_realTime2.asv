@@ -81,22 +81,18 @@ stepSamples = params.experiment.stepSize * params.eeg.Fs; % ステップサイ�
 %% 脳波データ計測
 % GUIの作成と表示
 createSaveDataGUI();
-dataBuffer = []; % データバッファの初期化
-% 結果とタイムスタンプを保存するための配列を初期化
-resultHistory = zeros(1, 15);
-timeHistory = zeros(1, 15);
+dataBuffer = [];
+
+resultHistory = zeros(1, 20);
 currentIndex = 1;
 while isRunning
-    % 現在の時刻を取得
-    currentTime = now;
-    [vec, ts] = inlet.pull_sample(); % データの受信
-    vec = vec(:); % 1x19の行ベクトルを19x1の列ベクトルに変換
-
-    % データバッファの更新（チャンネルごとにデータを追加）
+    [vec, ts] = inlet.pull_sample(); 
+    vec = vec(:); 
+ 
     if isempty(dataBuffer)
-        dataBuffer = vec; % 最初のデータセットの場合
+        dataBuffer = vec; 
     else
-        dataBuffer = [dataBuffer vec]; % データを追加
+        dataBuffer = [dataBuffer vec]; 
     end
       
     if size(dataBuffer, 2) >= samplesPerWindow  
@@ -106,52 +102,35 @@ while isRunning
         % 特徴量抽出
         features = extractIntegratedCSPFeatures(analysisData, cspFilters);
         
-        % SVMモデルから予想を出力
         [preLabel, preScore] = predict(svmMdl, features);
         
-        svmOutput= preLabel;
+        svmOutput = preLabel;
         
-        % Unityへのデータ通信
-        disp(svmOutput);
+        % svmOutputのログ出力
+        fprintf('現在の出力: %d\n', svmOutput);
         
-        % 結果とタイムスタンプを履歴に追加
-        resultHistory(currentIndex) = svmOutput;
-        timeHistory(currentIndex) = currentTime;
-        currentIndex = mod(currentIndex + 1, 15);
-        if currentIndex == 0
-            currentIndex = 15;
+        % 結果履歴の更新
+        resultHistory = circshift(resultHistory, [0 1]);
+        resultHistory(1) = svmOutput;
+        
+        % 直前20回の分類結果の割合を計算
+        [counts, ~] = histcounts(resultHistory, 'BinMethod', 'integers', 'BinLimits', [1, 4]);
+        percentages = counts / 20 * 100;
+        
+        % percentagesのログ出力
+        fprintf('Class Percentages:\n');
+        for i = 1:4
+            fprintf('  Class %d: %.2f%%\n', i, percentages(i));
         end
-
-        % Unityへのデータ通信
-        disp(svmOutput);
-
-        % 直近15秒のデータのみを使用
-        recentIndices = find(currentTime - timeHistory <= 15/86400); % 15秒をMATLABの日付形式に変換
-        recentResults = resultHistory(recentIndices);
-
-        % 最頻値を計算（直近15秒のデータのみ使用）
-        if ~isempty(recentResults)
-            mostFrequent = mode(recentResults);
-
-            % 感情推定結果送信（最頻値に基づく）
-            if mostFrequent == 1
-                UNSender([100, 0, 0, 0]);
-            elseif mostFrequent == 2
-                UNSender([0, 0, 0, 100]);
-            elseif mostFrequent == 3
-                UNSender([0, 100, 0, 0]);
-            elseif mostFrequent == 4
-                UNSender([0, 0, 100, 0]);
-            else
-                UNSender([50, 50, 50, 50]);
-            end
-        end
+        fprintf('\n');  % 見やすさのための空行
+        
+        % 割合に基づいてUNSenderを呼び出す
+        UNSender(percentages);
          
-        % データバッファの更新
-        dataBuffer = dataBuffer(:, (stepSamples+1):end); % オーバーラップを保持
+        dataBuffer = dataBuffer(:, (stepSamples+1):end); 
     end
-
-    pause(0.0001);  % 応答性を保つための短い休止
+ 
+    pause(0.0001);  
 end
 
 
